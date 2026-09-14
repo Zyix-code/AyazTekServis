@@ -1,0 +1,92 @@
+@model IReadOnlyList<AyazTekServis.Models.AuditLog>
+@{
+    ViewData["Title"] = "İşlem Logları";
+    var currentPage = (int)(ViewBag.Page ?? 1);
+    var totalPages = (int)(ViewBag.TotalPages ?? 1);
+    var total = (int)(ViewBag.Total ?? Model.Count);
+    var pageSize = (int)(ViewBag.PageSize ?? 20);
+    string FriendlyType(string value) => value switch {
+        "ServiceRecord" => "Servis Kaydı",
+        "User" => "Kullanıcı",
+        "UserSession" => "Oturum",
+        "System" => "Sistem",
+        "Email" => "E-posta",
+        "AuditLogs" => "Log",
+        _ => value
+    };
+}
+<div class="page-head">
+    <div><div class="eyebrow">Audit</div><h1>İşlem Logları</h1><p>Giriş, çıkış, servis, kullanıcı ve yönetim hareketleri burada tutulur. Varsayılan görünüm son 20 kayıttır.</p></div>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="badge text-bg-dark px-3 py-2">@total log</span>
+        <a asp-action="ExportLogs" class="btn btn-outline-success"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+        <a asp-action="Logs" class="btn btn-outline-secondary">Filtreleri Temizle</a>
+    </div>
+</div>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <a asp-action="Logs" class="btn btn-sm btn-outline-dark"><i class="bi bi-list-ul me-1"></i>Tüm İşlemler</a>
+    <a asp-action="Logs" asp-route-actionFilter="Giriş" class="btn btn-sm btn-outline-success"><i class="bi bi-box-arrow-in-right me-1"></i>Girişler</a>
+    <a asp-action="Logs" asp-route-actionFilter="Çıkış" class="btn btn-sm btn-outline-secondary"><i class="bi bi-box-arrow-right me-1"></i>Çıkışlar</a>
+    <a asp-action="Logs" asp-route-entityType="ServiceRecord" class="btn btn-sm btn-outline-primary"><i class="bi bi-wrench me-1"></i>Servis İşlemleri</a>
+    <a asp-action="Logs" asp-route-entityType="User" class="btn btn-sm btn-outline-primary"><i class="bi bi-person me-1"></i>Kullanıcı İşlemleri</a>
+    <a asp-action="Logs" asp-route-entityType="UserSession" class="btn btn-sm btn-outline-primary"><i class="bi bi-display me-1"></i>Oturum İşlemleri</a>
+</div>
+
+<div class="app-card card-pad mb-4">
+    <form method="get" class="log-filter-grid">
+        <div><label class="form-label">Ara</label><input name="search" value="@ViewBag.Search" class="form-control" placeholder="Açıklama, ID, IP, işlem..."/></div>
+        <div><label class="form-label">Kullanıcı</label><input name="username" value="@ViewBag.Username" class="form-control" placeholder="Kullanıcı"/></div>
+        <div><label class="form-label">İşlem</label><input name="actionFilter" value="@ViewBag.ActionFilter" class="form-control" placeholder="Örn. Giriş"/></div>
+        <div><label class="form-label">Tür</label><select name="entityType" class="form-select">
+            <option value="">Tüm türler</option>
+            <option value="ServiceRecord" selected="@(ViewBag.EntityType=="ServiceRecord")">Servis Kaydı</option>
+            <option value="User" selected="@(ViewBag.EntityType=="User")">Kullanıcı</option>
+            <option value="UserSession" selected="@(ViewBag.EntityType=="UserSession")">Oturum</option>
+            <option value="System" selected="@(ViewBag.EntityType=="System")">Sistem</option>
+            <option value="Email" selected="@(ViewBag.EntityType=="Email")">E-posta</option>
+        </select></div>
+        <div><label class="form-label">Başlangıç</label><input type="date" name="dateFrom" value="@ViewBag.DateFrom" class="form-control"/></div>
+        <div><label class="form-label">Bitiş</label><input type="date" name="dateTo" value="@ViewBag.DateTo" class="form-control"/></div>
+        <div><label class="form-label">Sayfa</label><select name="pageSize" class="form-select"><option value="20" selected="@(pageSize==20)">20</option><option value="50" selected="@(pageSize==50)">50</option><option value="100" selected="@(pageSize==100)">100</option></select></div>
+        <div class="log-filter-actions"><button class="btn btn-dark"><i class="bi bi-funnel me-1"></i>Filtrele</button></div>
+    </form>
+</div>
+
+<div class="app-card overflow-hidden">
+    <div class="table-responsive audit-table-wrap">
+        <table class="table table-hover align-middle mb-0 audit-table">
+            <thead><tr><th>Tarih</th><th>Kullanıcı</th><th>İşlem</th><th>Varlık</th><th>Açıklama</th><th>IP</th></tr></thead>
+            <tbody>
+            @if(!Model.Any()){<tr><td colspan="6" class="text-center py-5 text-muted">Bu filtreye uygun işlem kaydı bulunamadı.</td></tr>}
+            @foreach(var l in Model)
+            {
+                var danger = l.Action.Contains("Hata",StringComparison.OrdinalIgnoreCase) || l.Action.Contains("Kalıcı",StringComparison.OrdinalIgnoreCase);
+                var warning = l.Action.Contains("Sil",StringComparison.OrdinalIgnoreCase) || l.Action.Contains("İade",StringComparison.OrdinalIgnoreCase) || l.Action.Contains("Uyarı",StringComparison.OrdinalIgnoreCase);
+                var cls = danger ? "danger" : warning ? "warning" : "success";
+                var icon = danger ? "bi-x-octagon-fill" : warning ? "bi-exclamation-triangle-fill" : "bi-check-circle-fill";
+                var changes = AyazTekServis.Services.AuditChangeFormatter.Describe(l.OldValues,l.NewValues);
+                <tr>
+                    <td class="text-nowrap"><small>@l.CreatedAt.ToString("dd.MM.yyyy HH:mm:ss")</small></td>
+                    <td><strong>@(string.IsNullOrWhiteSpace(l.Username)?"Sistem":l.Username)</strong></td>
+                    <td><span class="log-pill log-@cls"><i class="bi @icon"></i>@l.Action</span></td>
+                    <td><span class="audit-entity">@FriendlyType(l.EntityType)</span>@if(!string.IsNullOrEmpty(l.EntityId)){<code>#@l.EntityId</code>}</td>
+                    <td class="log-description"><div>@l.Description</div>@if(changes.Any()){<div class="audit-changes">@foreach(var c in changes){<span>@c</span>}</div>}</td>
+                    <td><code>@l.IpAddress</code></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    @if(totalPages>1)
+    {
+        <div class="card-pad border-top d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <small class="text-muted">Sayfa @currentPage / @totalPages · @total kayıt</small>
+            <nav><ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(currentPage<=1?"disabled":"")"><a class="page-link" asp-action="Logs" asp-route-search="@ViewBag.Search" asp-route-username="@ViewBag.Username" asp-route-actionFilter="@ViewBag.ActionFilter" asp-route-entityType="@ViewBag.EntityType" asp-route-dateFrom="@ViewBag.DateFrom" asp-route-dateTo="@ViewBag.DateTo" asp-route-pageSize="@pageSize" asp-route-page="@(currentPage-1)">Önceki</a></li>
+                <li class="page-item disabled"><span class="page-link">@currentPage</span></li>
+                <li class="page-item @(currentPage>=totalPages?"disabled":"")"><a class="page-link" asp-action="Logs" asp-route-search="@ViewBag.Search" asp-route-username="@ViewBag.Username" asp-route-actionFilter="@ViewBag.ActionFilter" asp-route-entityType="@ViewBag.EntityType" asp-route-dateFrom="@ViewBag.DateFrom" asp-route-dateTo="@ViewBag.DateTo" asp-route-pageSize="@pageSize" asp-route-page="@(currentPage+1)">Sonraki</a></li>
+            </ul></nav>
+        </div>
+    }
+</div>

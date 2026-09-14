@@ -1,0 +1,145 @@
+@model AyazTekServis.Models.ServiceRecord
+@{
+    ViewData["Title"] = "Arızalı Ürün Kontrolü";
+    var statuses = ViewBag.Statuses as string[] ?? Array.Empty<string>();
+    var vatMode = string.IsNullOrWhiteSpace(Model.ChargeVatMode) ? "KDV Hariç" : Model.ChargeVatMode;
+    var currencyLabel = Model.ChargeCurrency == "TRY" ? "TL" : Model.ChargeCurrency;
+    var priceText = Model.HasCharge && Model.ChargeAmount.HasValue
+        ? $"{Model.ChargeAmount.Value:N2} {currencyLabel} {(vatMode == "KDV Hariç" ? "+ KDV" : "(KDV Dahil)")}"
+        : "Ücret yok";
+}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">2 / 3 · Teknik Kontrol</div>
+        <h1>Arızalı Ürün Kontrolü</h1>
+        <p><strong>@Model.TrackingNumber</strong> · @Model.Brand @Model.Model · @Model.SerialNumber</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-secondary"><i class="bi bi-pencil-square me-1"></i> Cihaz Bilgilerini Düzenle</a>
+        <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i> Detaya Dön</a>
+    </div>
+</div>
+
+<div class="workflow-steps mb-4">
+    <div class="workflow-step done"><span><i class="bi bi-check-lg"></i></span><div><strong>Kayıt</strong><small>Tamamlandı</small></div></div>
+    <div class="workflow-line done"></div>
+    <div class="workflow-step active"><span>2</span><div><strong>Kontrol</strong><small>Durum ve teknik sonuç</small></div></div>
+    <div class="workflow-line"></div>
+    <div class="workflow-step"><span>3</span><div><strong>Teslim</strong><small>Kapanış</small></div></div>
+</div>
+
+<form asp-action="Control" asp-route-id="@Model.Id" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="id" value="@Model.Id" />
+    <div class="row g-4">
+        <div class="col-xl-8">
+            <div class="app-card overflow-hidden">
+                <section class="form-section">
+                    <div class="section-title">Servis Durumu</div>
+                    <div class="section-sub mb-3">Cihazın serviste hangi aşamada olduğunu güncel tutun.</div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Güncel Durum *</label>
+                            <select name="status" class="form-select form-select-lg" required>
+                                @foreach (var s in statuses)
+                                {
+                                    <option value="@s" selected="@(Model.Status == s)">@s</option>
+                                }
+                            </select>
+                            <small class="text-muted">Serviste, Onarımda, Parça Bekliyor, Müşteri Onayı Bekliyor veya Teslime Hazır.</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold d-block">Garanti Durumu</label>
+                            <div class="segmented-choice">
+                                <input type="radio" name="isUnderWarranty" value="true" id="controlWarrantyYes" checked="@Model.IsUnderWarranty" />
+                                <label for="controlWarrantyYes"><i class="bi bi-shield-check"></i> Garantili</label>
+                                <input type="radio" name="isUnderWarranty" value="false" id="controlWarrantyNo" checked="@(!Model.IsUnderWarranty)" />
+                                <label for="controlWarrantyNo"><i class="bi bi-shield-x"></i> Garantisiz</label>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="form-section border-top">
+                    <div class="section-title">Ücret ve Teknik Sonuç</div>
+                    <div class="section-sub mb-3">Servis ücretini iç takip için kaydedin. Bu tutar müşteri kayıt ve teslim formlarında gösterilmez.</div>
+                    <div class="row g-3">
+                        <div class="col-lg-5 col-md-6">
+                            <label class="form-label fw-bold" for="chargeAmount">Servis Ücreti</label>
+                            <input id="chargeAmount" name="chargeAmount" value="@Model.ChargeAmount?.ToString(System.Globalization.CultureInfo.InvariantCulture)" type="number" min="0" step="0.01" class="form-control" placeholder="0,00" inputmode="decimal" />
+                            <small class="text-muted">Ücret yoksa boş bırakın.</small>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <label class="form-label fw-bold" for="chargeCurrency">Para Birimi</label>
+                            <select id="chargeCurrency" name="chargeCurrency" class="form-select">
+                                <option value="TRY" selected="@(Model.ChargeCurrency == "TRY")">TL</option>
+                                <option value="USD" selected="@(Model.ChargeCurrency == "USD")">USD</option>
+                                <option value="EUR" selected="@(Model.ChargeCurrency == "EUR")">EUR</option>
+                            </select>
+                        </div>
+                        <div class="col-lg-4 col-md-3">
+                            <label class="form-label fw-bold" for="chargeVatMode">KDV Durumu</label>
+                            <select id="chargeVatMode" name="chargeVatMode" class="form-select">
+                                <option value="KDV Hariç" selected="@(vatMode == "KDV Hariç")">KDV Hariç (+ KDV)</option>
+                                <option value="KDV Dahil" selected="@(vatMode == "KDV Dahil")">KDV Dahil</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Yapılan İşlem / Teknik Sonuç</label>
+                            <textarea name="serviceResult" class="form-control" rows="5" placeholder="Tespit, yapılan işlem, parça bekleme nedeni veya servis sonucu...">@Model.ServiceResult</textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Kontrol Notu</label>
+                            <textarea name="notes" class="form-control" rows="4" placeholder="Teknik ek notlar...">@Model.ControlNotes</textarea>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <div class="col-xl-4">
+            <div class="app-card card-pad sticky-xl-top" style="top:90px">
+                <div class="section-title mb-3">Kayıt Özeti</div>
+                <div class="summary-list">
+                    <div><span>Ürün</span><strong>@Model.Brand @Model.Model</strong></div>
+                    <div><span>Cins</span><strong>@Model.ProductType</strong></div>
+                    <div><span>Seri No</span><strong>@Model.SerialNumber</strong></div>
+                    <div><span>Gönderilen Servis</span><strong>@(string.IsNullOrWhiteSpace(Model.SentToService) ? "-" : Model.SentToService)</strong></div>
+                    <div><span>Mevcut Durum</span><strong>@Model.Status</strong></div>
+                    <div><span>Garanti</span><strong>@(Model.IsUnderWarranty ? "Garantili" : "Garantisiz")</strong></div>
+                    <div><span>Servis Ücreti</span><strong id="chargePreview">@priceText</strong></div>
+                    <div><span>Arıza Nedeni</span><strong>@Model.FaultReason</strong></div>
+                </div>
+                <hr />
+                <button class="btn btn-primary w-100 fw-bold py-2"><i class="bi bi-clipboard2-check me-1"></i> Kontrolü Kaydet</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script>
+(() => {
+    const amount = document.getElementById('chargeAmount');
+    const currency = document.getElementById('chargeCurrency');
+    const vat = document.getElementById('chargeVatMode');
+    const preview = document.getElementById('chargePreview');
+    if (!amount || !currency || !vat || !preview) return;
+
+    const updatePreview = () => {
+        const raw = amount.value.trim();
+        const number = Number(raw);
+        if (!raw || !Number.isFinite(number) || number <= 0) {
+            preview.textContent = 'Ücret yok';
+            return;
+        }
+        const unit = currency.value === 'TRY' ? 'TL' : currency.value;
+        const formatted = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(number);
+        preview.textContent = `${formatted} ${unit} ${vat.value === 'KDV Hariç' ? '+ KDV' : '(KDV Dahil)'}`;
+    };
+
+    amount.addEventListener('input', updatePreview);
+    currency.addEventListener('change', updatePreview);
+    vat.addEventListener('change', updatePreview);
+    updatePreview();
+})();
+</script>

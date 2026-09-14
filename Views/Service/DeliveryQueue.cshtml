@@ -1,0 +1,30 @@
+@model IReadOnlyList<AyazTekServis.Models.ServiceRecord>
+@{
+    ViewData["Title"] = "Teslim İşlemleri";
+    var currentPage=(int)(ViewBag.Page??1);
+    var totalPages=(int)(ViewBag.TotalPages??1);
+    var pageSize=(int)(ViewBag.PageSize??20);
+    var total=(int)(ViewBag.Total??Model.Count);
+}
+<div class="page-head">
+    <div><div class="eyebrow">Teslim Merkezi</div><h1>Teslime Hazır Ürünler</h1><p>Kontrolü tamamlanmış ve teslim bekleyen cihazları buradan kapatın.</p></div>
+    <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-list-ul me-1"></i> Tüm Servisler</a>
+</div>
+<div class="app-card card-pad mb-4">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-lg-9"><label class="form-label small fw-bold">Arama</label><input name="search" value="@ViewBag.Search" class="form-control" placeholder="Takip no, marka, model, seri no veya gönderen ara..." /></div>
+        <div class="col-lg-1 col-md-3"><label class="form-label small fw-bold">Sayfa</label><select name="pageSize" class="form-select"><option value="20" selected="@(pageSize==20)">20</option><option value="50" selected="@(pageSize==50)">50</option><option value="100" selected="@(pageSize==100)">100</option></select></div>
+        <div class="col-lg-2 col-md-9 d-flex gap-2"><button class="btn btn-dark flex-fill"><i class="bi bi-search me-1"></i> Ara</button><a asp-action="DeliveryQueue" class="btn btn-outline-secondary" title="Temizle"><i class="bi bi-x-lg"></i></a></div>
+    </form>
+</div>
+<div class="app-card overflow-hidden">
+    <div class="list-toolbar"><div><strong>@total</strong> teslim bekliyor</div><span class="badge text-bg-success px-3 py-2">Teslime Hazır</span></div>
+    <div class="table-responsive app-table-scroll"><table class="table table-hover align-middle mb-0">
+        <thead><tr><th class="ps-4">Takip No</th><th>Ürün</th><th>Gönderen</th><th>Servis</th><th>Son Güncelleme</th><th class="text-end pe-4">İşlem</th></tr></thead>
+        <tbody>
+        @if(!Model.Any()){<tr><td colspan="6"><div class="empty-state m-4"><i class="bi bi-check2-circle"></i><strong>Teslim bekleyen ürün yok</strong><small>Bir cihaz kontrol ekranından “Teslime Hazır” yapıldığında burada görünür.</small></div></td></tr>}
+        @foreach(var r in Model){<tr><td class="ps-4"><strong class="text-primary">@r.TrackingNumber</strong></td><td><strong>@r.Brand @r.Model</strong><small class="d-block text-muted">@r.ProductType · @r.SerialNumber</small></td><td>@(string.IsNullOrWhiteSpace(r.Sender)?"-":r.Sender)</td><td>@r.SentToService</td><td>@((r.UpdatedAt ?? r.CreatedAt).ToString("dd.MM.yyyy HH:mm"))</td><td class="text-end pe-4"><div class="btn-group"><a asp-action="Details" asp-route-id="@r.Id" class="btn btn-sm btn-outline-secondary" title="Detay"><i class="bi bi-eye"></i></a><a asp-action="Delivery" asp-route-id="@r.Id" class="btn btn-sm btn-success"><i class="bi bi-box-arrow-right me-1"></i>Teslim</a></div></td></tr>}
+        </tbody>
+    </table></div>
+    @if(totalPages>1){<div class="pagination-bar"><small class="text-muted">@total kayıt · @pageSize kayıt/sayfa</small><nav aria-label="Teslim sayfalama"><ul class="pagination pagination-sm mb-0"><li class="page-item @(currentPage<=1?"disabled":"")"><a class="page-link" asp-action="DeliveryQueue" asp-route-search="@ViewBag.Search" asp-route-pageSize="@pageSize" asp-route-page="@(currentPage-1)">Önceki</a></li><li class="page-item disabled"><span class="page-link">@currentPage / @totalPages</span></li><li class="page-item @(currentPage>=totalPages?"disabled":"")"><a class="page-link" asp-action="DeliveryQueue" asp-route-search="@ViewBag.Search" asp-route-pageSize="@pageSize" asp-route-page="@(currentPage+1)">Sonraki</a></li></ul></nav></div>}
+</div>

@@ -1,0 +1,80 @@
+@model AyazTekServis.Models.ServiceRecord
+@{
+    var parts = Model.Parts?.ToList() ?? new List<AyazTekServis.Models.ServicePart>();
+}
+<div class="workflow-steps mb-4">
+    <div class="workflow-step active"><span>1</span><div><strong>Kayıt</strong><small>Ürün ve gönderim</small></div></div>
+    <div class="workflow-line"></div>
+    <div class="workflow-step"><span>2</span><div><strong>Kontrol</strong><small>Teknik sonuç</small></div></div>
+    <div class="workflow-line"></div>
+    <div class="workflow-step"><span>3</span><div><strong>Teslim</strong><small>Kapanış ve rapor</small></div></div>
+</div>
+
+<div class="app-card overflow-hidden mb-4">
+    <section class="form-section">
+        <div class="section-title">Arızalı Ürün Bilgileri</div>
+        <div class="section-sub mb-3">Cihazı tanımlayan temel bilgiler.</div>
+        <div class="row g-3">
+            <div class="col-lg-3 col-md-6"><label asp-for="Brand" class="form-label fw-bold">Marka *</label><input asp-for="Brand" class="form-control" placeholder="ASUS, Lenovo, Apple..."/><span asp-validation-for="Brand" class="text-danger small"></span></div>
+            <div class="col-lg-3 col-md-6"><label asp-for="Model" class="form-label fw-bold">Model *</label><input asp-for="Model" class="form-control"/><span asp-validation-for="Model" class="text-danger small"></span></div>
+            <div class="col-lg-3 col-md-6"><label asp-for="ProductType" class="form-label fw-bold">Cins *</label><input asp-for="ProductType" class="form-control" placeholder="Laptop, telefon, monitör..."/><span asp-validation-for="ProductType" class="text-danger small"></span></div>
+            <div class="col-lg-3 col-md-6"><label asp-for="SerialNumber" class="form-label fw-bold">Seri No *</label><input asp-for="SerialNumber" class="form-control"/><span asp-validation-for="SerialNumber" class="text-danger small"></span></div>
+        </div>
+    </section>
+
+    <section class="form-section">
+        <div class="section-title">Müşteri İletişim Bilgileri</div>
+        <div class="section-sub mb-3">Müşteriye servis süreciyle ilgili ulaşmak için kullanılacak bilgiler. İkisi de opsiyoneldir.</div>
+        <div class="row g-3">
+            <div class="col-lg-4 col-md-6"><label asp-for="Sender" class="form-label fw-bold">Gönderen / Müşteri</label><input asp-for="Sender" class="form-control" placeholder="Firma / birim / kişi"/><span asp-validation-for="Sender" class="text-danger small"></span></div>
+            <div class="col-lg-4 col-md-6"><label asp-for="CustomerPhone" class="form-label fw-bold">Telefon Numarası</label><input asp-for="CustomerPhone" class="form-control" type="tel" inputmode="tel" autocomplete="tel" pattern="[+0-9() .-]{10,24}" maxlength="24" placeholder="05xx xxx xx xx"/><span asp-validation-for="CustomerPhone" class="text-danger small"></span><small class="field-hint">Opsiyonel · yalnızca geçerli telefon formatı kabul edilir.</small></div>
+            <div class="col-lg-4 col-md-12"><label asp-for="CustomerEmail" class="form-label fw-bold">E-posta</label><input asp-for="CustomerEmail" class="form-control" type="email" autocomplete="email" placeholder="musteri@ornek.com"/><span asp-validation-for="CustomerEmail" class="text-danger small"></span><small class="field-hint">Opsiyonel · durum bildirimleri bu adrese gönderilir.</small></div>
+        </div>
+    </section>
+
+    <section class="form-section">
+        <div class="section-title">Servis ve Gönderim</div>
+        <div class="section-sub mb-3">Gönderilecek teknik birim ve arıza açıklaması. Servise gidiş tarihi, ürün gerçekten servise alındığında sistem tarafından kaydedilir.</div>
+        <div class="row g-3">
+            <div class="col-lg-6 col-md-6"><label asp-for="SentToService" class="form-label fw-bold">Gönderilen Servis *</label><input asp-for="SentToService" class="form-control" placeholder="Yetkili servis / teknik birim"/><span asp-validation-for="SentToService" class="text-danger small"></span></div>
+            <div class="col-lg-6 col-md-12">
+                <label class="form-label fw-bold">Takip No</label>
+                <div class="tracking-preview"><i class="bi bi-magic"></i><span>@(string.IsNullOrWhiteSpace(Model.TrackingNumber) ? "Kayıtta otomatik oluşturulacak" : Model.TrackingNumber)</span></div>
+            </div>
+            <div class="col-12"><label asp-for="FaultReason" class="form-label fw-bold">Arızalı Ürün Nedeni *</label><textarea asp-for="FaultReason" class="form-control" rows="4" placeholder="Ürünün servise gönderilme sebebini açıkça yazın..."></textarea><span asp-validation-for="FaultReason" class="text-danger small"></span></div>
+            <div class="col-md-6"><label asp-for="Accessories" class="form-label fw-bold">Aksesuar</label><textarea asp-for="Accessories" class="form-control" rows="3" placeholder="Adaptör, çanta, kablo vb."></textarea></div>
+            <div class="col-md-6"><label asp-for="Notes" class="form-label fw-bold">Not</label><textarea asp-for="Notes" class="form-control" rows="3" placeholder="Kayıt aşamasındaki ek notlar..."></textarea></div>
+            <div class="col-md-6"><label class="form-label fw-bold d-block">Garanti Durumu</label><div class="segmented-choice"><input type="radio" asp-for="IsUnderWarranty" value="true" id="warrantyYes"><label for="warrantyYes"><i class="bi bi-shield-check"></i> Garantili</label><input type="radio" asp-for="IsUnderWarranty" value="false" id="warrantyNo"><label for="warrantyNo"><i class="bi bi-shield-x"></i> Garantisiz</label></div></div>
+        </div>
+    </section>
+
+    <section class="form-section">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div><div class="section-title">Parça Bilgileri</div><div class="section-sub">Takılan ve çıkarılan parçaları ayrı kayıt olarak ekleyin.</div></div>
+            <button type="button" class="btn btn-outline-primary" id="addPart"><i class="bi bi-plus-lg me-1"></i> Parça Ekle</button>
+        </div>
+        <div id="partsContainer">
+            @for(var i=0;i<parts.Count;i++){
+                <div class="part-row border rounded-4 p-3 mb-3">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-lg-2"><label class="form-label small fw-bold">Parça Türü</label><select class="form-select" data-field="PartType"><option value="Takılan" selected="@(parts[i].PartType=="Takılan")">Takılan Parça</option><option value="Çıkarılan" selected="@(parts[i].PartType=="Çıkarılan")">Çıkarılan Parça</option></select></div>
+                        <div class="col-lg-4"><label class="form-label small fw-bold">Parça Adı *</label><input class="form-control" data-field="PartName" value="@parts[i].PartName" placeholder="SSD, RAM, fan, anakart..."/></div>
+                        <div class="col-lg-3"><label class="form-label small fw-bold">Seri No</label><input class="form-control" data-field="SerialNumber" value="@parts[i].SerialNumber"/></div>
+                        <div class="col-lg-2"><label class="form-label small fw-bold">Adet</label><input class="form-control" type="number" min="1" data-field="Quantity" value="@parts[i].Quantity"/></div>
+                        <div class="col-lg-1"><button type="button" class="btn btn-outline-danger w-100 remove-part" title="Parçayı kaldır"><i class="bi bi-trash"></i></button></div>
+                    </div>
+                </div>
+            }
+        </div>
+        <div id="noParts" class="empty-state"><i class="bi bi-box-seam"></i><strong>Parça bilgisi yok</strong><small>Gerekliyse “Parça Ekle” ile takılan veya çıkarılan parça ekleyin.</small></div>
+    </section>
+</div>
+<script>
+(() => {
+ const container=document.getElementById('partsContainer'), empty=document.getElementById('noParts'), add=document.getElementById('addPart'), form=document.getElementById('serviceForm');
+ function refresh(){empty.style.display=container.querySelectorAll('.part-row').length?'none':'flex'}
+ function addRow(){container.insertAdjacentHTML('beforeend',`<div class="part-row border rounded-4 p-3 mb-3"><div class="row g-3 align-items-end"><div class="col-lg-2"><label class="form-label small fw-bold">Parça Türü</label><select class="form-select" data-field="PartType"><option>Takılan</option><option>Çıkarılan</option></select></div><div class="col-lg-4"><label class="form-label small fw-bold">Parça Adı *</label><input class="form-control" data-field="PartName" placeholder="SSD, RAM, fan, anakart..."/></div><div class="col-lg-3"><label class="form-label small fw-bold">Seri No</label><input class="form-control" data-field="SerialNumber"/></div><div class="col-lg-2"><label class="form-label small fw-bold">Adet</label><input class="form-control" type="number" min="1" value="1" data-field="Quantity"/></div><div class="col-lg-1"><button type="button" class="btn btn-outline-danger w-100 remove-part"><i class="bi bi-trash"></i></button></div></div></div>`);refresh()}
+ function reindex(){container.querySelectorAll('.part-row').forEach((row,i)=>row.querySelectorAll('[data-field]').forEach(el=>el.name=`Parts[${i}].${el.dataset.field}`))}
+ add.addEventListener('click',addRow);container.addEventListener('click',e=>{const b=e.target.closest('.remove-part');if(b){b.closest('.part-row').remove();refresh()}});if(form)form.addEventListener('submit',reindex);reindex();refresh();
+})();
+</script>

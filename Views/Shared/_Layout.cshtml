@@ -1,0 +1,150 @@
+@using Microsoft.Extensions.Caching.Memory
+@using Microsoft.EntityFrameworkCore
+@inject AyazTekServis.Models.ApplicationDbContext Db
+@inject AyazTekServis.Services.NotificationService NotificationService
+@inject Microsoft.Extensions.Caching.Memory.IMemoryCache MemoryCache
+@{
+    var authenticated = User.Identity?.IsAuthenticated == true;
+    var layoutSettings = MemoryCache.GetOrCreate("layout-settings-v14", entry =>
+    {
+        entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30);
+        return Db.SystemSettings.AsNoTracking()
+            .Where(x => x.Key == "CompanyName" || x.Key == "SupportEmail" || x.Key == "DefaultTheme")
+            .ToDictionary(x => x.Key, x => x.Value);
+    }) ?? new Dictionary<string,string>();
+    var companyName = layoutSettings.GetValueOrDefault("CompanyName") ?? "AyazTek Servis";
+    var supportEmail = layoutSettings.GetValueOrDefault("SupportEmail");
+    if (string.IsNullOrWhiteSpace(supportEmail)) supportEmail = "selcuksahin158@gmail.com";
+    var defaultTheme = layoutSettings.GetValueOrDefault("DefaultTheme") ?? "system";
+    var userThemePreference = "system";
+    if (authenticated && int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var layoutUserId))
+    {
+        userThemePreference = await Db.Users.AsNoTracking()
+            .Where(x => x.Id == layoutUserId)
+            .Select(x => x.ThemePreference)
+            .FirstOrDefaultAsync() ?? "system";
+        if (userThemePreference is not ("system" or "light" or "dark")) userThemePreference = "system";
+    }
+    var routeController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
+    var routeAction = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
+    var serviceListActive = routeController == "Service" && new[] { "Index", "Details", "Edit", "Control", "ServiceReport" }.Contains(routeAction);
+    var deliveryActive = routeController == "Service" && new[] { "DeliveryQueue", "Delivery", "DeliveryReport" }.Contains(routeAction);
+    AyazTekServis.ViewModels.NotificationCenterViewModel? notificationSummary = null;
+    if (authenticated) notificationSummary = await NotificationService.GetAsync(User.IsInRole("Admin"), 6);
+}
+<!DOCTYPE html>
+<html lang="tr" data-default-theme="@defaultTheme" data-user-theme="@userThemePreference">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>@ViewData["Title"] - @companyName</title>
+    <link rel="icon" type="image/x-icon" href="~/favicon.ico" />
+    <link rel="apple-touch-icon" href="~/images/ayaz-teknoloji-logo.jpg" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <script>
+        (() => {
+            const html = document.documentElement;
+            const userPref = html.dataset.userTheme || 'system';
+            const globalPref = html.dataset.defaultTheme || 'system';
+            const selected = userPref === 'system' ? globalPref : userPref;
+            const resolved = selected === 'system'
+                ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                : selected;
+            html.setAttribute('data-bs-theme', resolved);
+            html.dataset.resolvedTheme = resolved;
+        })();
+    </script>
+</head>
+<body class="@(authenticated ? "app-shell" : "auth-shell")">
+@if (authenticated)
+{
+    <aside class="sidebar" id="sidebar" aria-label="Ana menü">
+        <a class="brand brand-with-logo brand-logo-only" asp-controller="Home" asp-action="Index" aria-label="Ayaz Teknoloji Dashboard">
+            <img src="~/images/ayaz-teknoloji-logo.jpg" alt="Ayaz Teknoloji" />
+        </a>
+        <nav class="sidebar-nav">
+            <div class="nav-caption">YÖNETİM</div>
+            <a asp-controller="Home" asp-action="Index" class="@(routeController == "Home" ? "active" : "")"><i class="bi bi-grid-1x2"></i><span>Dashboard</span></a>
+            <a asp-controller="Service" asp-action="Index" class="@(serviceListActive ? "active" : "")"><i class="bi bi-wrench-adjustable-circle"></i><span>Servis Kayıtları</span></a>
+            <a asp-controller="Service" asp-action="AddService" class="@(routeController == "Service" && routeAction == "AddService" ? "active" : "")"><i class="bi bi-plus-square"></i><span>Yeni Kayıt</span></a>
+            <a asp-controller="Service" asp-action="DeliveryQueue" class="@(deliveryActive ? "active" : "")"><i class="bi bi-box-arrow-right"></i><span>Teslim İşlemleri</span></a>
+            @if (User.IsInRole("Admin"))
+            {
+                <div class="nav-caption mt-3">ADMIN</div>
+                <a asp-controller="Admin" asp-action="Index" class="@(routeController == "Admin" ? "active" : "")"><i class="bi bi-shield-check"></i><span>Admin Merkezi</span></a>
+            }
+        </nav>
+        <div class="sidebar-footer">
+            <a asp-controller="Account" asp-action="Settings" class="user-chip">
+                <span class="avatar">@(User.Identity?.Name?.Substring(0,1).ToUpperInvariant() ?? "U")</span>
+                <span class="overflow-hidden"><strong class="text-truncate d-block">@User.Identity?.Name</strong><small>@(User.IsInRole("Admin") ? "Yönetici" : "Kullanıcı")</small></span>
+            </a>
+            <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
+                @Html.AntiForgeryToken()
+                <button class="btn btn-sidebar-danger w-100"><i class="bi bi-box-arrow-right"></i> Çıkış</button>
+            </form>
+        </div>
+    </aside>
+    <div class="app-main">
+        <header class="topbar">
+            <button class="icon-btn d-lg-none" type="button" id="sidebarToggle"><i class="bi bi-list"></i></button>
+            <div class="topbar-title"><strong>@ViewData["Title"]</strong></div>
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <a asp-controller="Notifications" asp-action="Index" class="icon-btn notification-bell" title="Bildirimler"><i class="bi bi-bell"></i>@if((notificationSummary?.Count??0)>0){<span class="notification-badge">@Math.Min(notificationSummary?.Count ?? 0,99)</span>}</a>
+                @if (User.IsInRole("Admin")) { <a asp-controller="Admin" asp-action="Index" class="admin-home-shortcut" title="Admin Merkezi" aria-label="Admin Merkezi"><i class="bi bi-shield-check"></i><span>Admin</span></a> }
+                <form asp-controller="Account" asp-action="UpdateTheme" method="post" id="themeToggleForm" class="theme-toggle-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="themePreference" id="themeTogglePreference" value="@userThemePreference" />
+                    <button class="theme-switch" type="submit" id="themeToggle" title="Temayı değiştir" aria-label="Temayı değiştir" aria-pressed="@(userThemePreference == "dark" ? "true" : "false")">
+                        <span class="theme-switch-track">
+                            <span class="theme-switch-thumb"></span>
+                            <span class="theme-switch-icon theme-switch-moon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" focusable="false"><path d="M20.2 15.3A8.5 8.5 0 0 1 8.7 3.8 9 9 0 1 0 20.2 15.3Z"/></svg>
+                            </span>
+                            <span class="theme-switch-icon theme-switch-sun" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/></svg>
+                            </span>
+                        </span>
+                    </button>
+                </form>
+                <a asp-controller="Account" asp-action="Settings" class="icon-btn" title="Hesap ayarları"><i class="bi bi-person-gear"></i></a>
+            </div>
+        </header>
+        <main class="content-area">
+            @if (TempData["SuccessMessage"] != null) { <div class="alert alert-success app-alert"><i class="bi bi-check-circle-fill"></i>@TempData["SuccessMessage"]</div> }
+            @if (TempData["ErrorMessage"] != null) { <div class="alert alert-danger app-alert"><i class="bi bi-exclamation-octagon-fill"></i>@TempData["ErrorMessage"]</div> }
+            @if (TempData["WarningMessage"] != null) { <div class="alert alert-warning app-alert"><i class="bi bi-exclamation-triangle-fill"></i>@TempData["WarningMessage"]</div> }
+            @if (User.IsInRole("Admin") && routeController == "Admin" && routeAction != "Index")
+            {
+                <div class="admin-context-bar no-print">
+                    <a asp-controller="Admin" asp-action="Index" class="admin-context-back"><i class="bi bi-arrow-left"></i><span>Admin Merkezi</span></a>
+                    <span class="admin-context-divider"><i class="bi bi-chevron-right"></i></span>
+                    <strong class="admin-context-title">@ViewData["Title"]</strong>
+                </div>
+            }
+            @RenderBody()
+        </main>
+        <footer class="app-footer">
+            <div>Bu uygulama Selçuk Şahin tarafından yapılmış olup.</div>
+            <div>Arıza, öneri, şikayet için <a href="mailto:@supportEmail">@supportEmail</a>'a mail gönderebilirsiniz.</div>
+        </footer>
+    </div>
+}
+else
+{
+    <div class="auth-page">
+        <main class="auth-main">@RenderBody()</main>
+        <footer class="auth-footer">
+            <div>Bu uygulama Selçuk Şahin tarafından yapılmış olup.</div>
+            <div>Arıza, öneri, şikayet için <a href="mailto:@supportEmail">@supportEmail</a>'a mail gönderebilirsiniz.</div>
+        </footer>
+    </div>
+}
+<script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+<script src="~/js/site.js" asp-append-version="true"></script>
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

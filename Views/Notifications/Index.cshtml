@@ -1,0 +1,41 @@
+@model AyazTekServis.ViewModels.NotificationCenterViewModel
+@{
+    ViewData["Title"] = "Bildirim Merkezi";
+    var currentPage = (int)(ViewBag.Page ?? 1);
+    var totalPages = (int)(ViewBag.TotalPages ?? 1);
+    var total = (int)(ViewBag.Total ?? Model.Count);
+    var currentType = ViewBag.Type as string;
+    var allTotal = (int)(ViewBag.AllTotal ?? 0);
+    var preServiceTotal = (int)(ViewBag.PreServiceTotal ?? 0);
+    var warningTotal = (int)(ViewBag.WarningTotal ?? 0);
+    var criticalTotal = (int)(ViewBag.CriticalTotal ?? 0);
+}
+<div class="page-head compact-page-head">
+    <div><div class="eyebrow">Takip & Uyarılar</div><h1>Bildirim Merkezi</h1><p>Yalnızca aksiyon gerektiren servis süreleri ve önemli durumlar gösterilir.</p></div>
+</div>
+<div class="notification-summary-grid mb-3">
+    <a asp-action="Index" class="notification-summary-card @(string.IsNullOrWhiteSpace(currentType)?"active":"")"><span class="summary-dot dot-all"></span><div><strong>@allTotal</strong><small>Tüm Bildirimler</small></div></a>
+    <a asp-action="Index" asp-route-type="preservice" class="notification-summary-card @(currentType=="preservice"?"active":"")"><span class="summary-dot dot-info"></span><div><strong>@preServiceTotal</strong><small>Servis Öncesi</small></div></a>
+    <a asp-action="Index" asp-route-type="warning" class="notification-summary-card @(currentType=="warning"?"active":"")"><span class="summary-dot dot-warning"></span><div><strong>@warningTotal</strong><small>18-19 / Onay</small></div></a>
+    <a asp-action="Index" asp-route-type="danger" class="notification-summary-card @(currentType=="danger"?"active":"")"><span class="summary-dot dot-danger"></span><div><strong>@criticalTotal</strong><small>20+ / Gecikmiş</small></div></a>
+</div>
+<div class="app-card overflow-hidden">
+    <div class="notification-list">
+        @if(!Model.Items.Any())
+        {
+            <div class="empty-state py-5"><i class="bi bi-check-circle"></i><strong>Takip gerektiren kayıt yok</strong><small>Seçilen kategoride aktif uyarı bulunmuyor.</small></div>
+        }
+        @foreach(var n in Model.Items)
+        {
+            <a href="@n.Url" class="notification-row notification-@n.Type">
+                <span class="notification-icon"><i class="bi @n.Icon"></i></span>
+                <span class="flex-grow-1 min-w-0"><strong>@n.Title</strong><small>@n.Message</small></span>
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        }
+    </div>
+    @if(totalPages > 1)
+    {
+        <div class="pagination-bar"><small class="text-muted">Sayfa @currentPage / @totalPages · @total kayıt</small><nav><ul class="pagination pagination-sm mb-0"><li class="page-item @(currentPage<=1?"disabled":"")"><a class="page-link" asp-action="Index" asp-route-type="@currentType" asp-route-page="@(currentPage-1)">Önceki</a></li><li class="page-item @(currentPage>=totalPages?"disabled":"")"><a class="page-link" asp-action="Index" asp-route-type="@currentType" asp-route-page="@(currentPage+1)">Sonraki</a></li></ul></nav></div>
+    }
+</div>

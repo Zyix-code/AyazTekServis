@@ -1,0 +1,109 @@
+@model AyazTekServis.Models.ServiceRecord
+@using AyazTekServis.Models
+@{
+    ViewData["Title"] = $"Servis {Model.TrackingNumber}";
+    var logs = ViewBag.Logs as IReadOnlyList<AuditLog> ?? new List<AuditLog>();
+    var controlDone = !string.IsNullOrWhiteSpace(Model.ServiceResult) || !string.IsNullOrWhiteSpace(Model.ControlNotes) || Model.HasCharge || Model.Status != "Kayıt Açıldı";
+    var priceCurrency = Model.ChargeCurrency == "TRY" ? "TL" : Model.ChargeCurrency;
+    var vatMode = string.IsNullOrWhiteSpace(Model.ChargeVatMode) ? "KDV Hariç" : Model.ChargeVatMode;
+    var priceText = Model.HasCharge && Model.ChargeAmount.HasValue ? $"{Model.ChargeAmount.Value:N2} {priceCurrency} {(vatMode == "KDV Hariç" ? "+ KDV" : "(KDV Dahil)")}" : "Ücret yok";
+    var delivered = Model.Status == "Tamamlandı" && Model.DeliveryDate.HasValue;
+}
+<div class="page-head">
+    <div><div class="eyebrow">Servis Takip No</div><h1>@Model.TrackingNumber</h1><p>@Model.Brand @Model.Model · @Model.SerialNumber</p></div>
+    <div class="d-flex flex-wrap gap-2 no-print">
+        @if(!Model.IsDeleted){
+            <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-secondary"><i class="bi bi-pencil me-1"></i> Kayıt Bilgileri</a>
+            @if(!delivered){<a asp-action="Control" asp-route-id="@Model.Id" class="btn btn-primary"><i class="bi bi-clipboard2-pulse me-1"></i> Ürün Kontrolü</a>}
+            @if(Model.Status == "Teslime Hazır") { <a asp-action="Delivery" asp-route-id="@Model.Id" class="btn btn-success"><i class="bi bi-box-arrow-right me-1"></i> Teslim</a> }
+        }
+        <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+    </div>
+</div>
+@if(Model.IsDeleted){<div class="alert alert-danger app-alert"><i class="bi bi-trash3-fill"></i>Bu kayıt silinmiş durumda. @if(User.IsInRole("Admin")){<div class="ms-auto d-flex gap-2"><form asp-action="Restore" asp-route-id="@Model.Id" method="post">@Html.AntiForgeryToken()<button class="btn btn-sm btn-outline-success">Geri Yükle</button></form><form asp-action="PermanentDelete" asp-route-id="@Model.Id" method="post" onsubmit="return confirm('Bu kayıt kalıcı olarak silinecek ve geri alınamayacak. Emin misiniz?');">@Html.AntiForgeryToken()<button class="btn btn-sm btn-danger">Kalıcı Sil</button></form></div>}</div>}
+
+<div class="workflow-steps mb-4">
+    <div class="workflow-step done"><span><i class="bi bi-check-lg"></i></span><div><strong>Kayıt</strong><small>Tamamlandı</small></div></div>
+    <div class="workflow-line @(controlDone ? "done" : "")"></div>
+    <div class="workflow-step @(controlDone ? "done" : "active")"><span>@if(controlDone){<i class="bi bi-check-lg"></i>}else{<text>2</text>}</span><div><strong>Kontrol</strong><small>@(controlDone ? "Kaydedildi" : "Bekliyor")</small></div></div>
+    <div class="workflow-line @(delivered ? "done" : "")"></div>
+    <div class="workflow-step @(delivered ? "done" : controlDone ? "active" : "")"><span>@if(delivered){<i class="bi bi-check-lg"></i>}else{<text>3</text>}</span><div><strong>Teslim</strong><small>@(delivered ? "Tamamlandı" : "Bekliyor")</small></div></div>
+</div>
+@{var bdText=ViewBag.BusinessDayText as string??"";var bdLevel=ViewBag.BusinessDayLevel as string??"info";var deviceHistory=ViewBag.DeviceHistory as IReadOnlyList<AyazTekServis.Models.ServiceRecord>??new List<AyazTekServis.Models.ServiceRecord>();}
+<div class="service-age-banner service-age-@bdLevel mb-4"><i class="bi @(bdLevel=="danger"?"bi-exclamation-octagon-fill":bdLevel=="warning"?"bi-exclamation-triangle-fill":"bi-clock-history")"></i><div><strong>Servis Süresi</strong><span>@bdText</span></div></div>
+
+<div class="row g-4">
+    <div class="col-xl-8">
+        <div class="app-card card-pad mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3"><div><div class="section-title">Arızalı Ürün Bilgileri</div><div class="section-sub">İlk kayıt sırasında girilen bilgiler</div></div><span class="badge text-bg-primary px-3 py-2">@Model.Status</span></div>
+            <div class="meta-grid">
+                <div class="meta-item"><small>Marka</small><strong>@Model.Brand</strong></div><div class="meta-item"><small>Model</small><strong>@Model.Model</strong></div>
+                <div class="meta-item"><small>Cins</small><strong>@Model.ProductType</strong></div><div class="meta-item"><small>Seri No</small><code>@Model.SerialNumber</code></div>
+                <div class="meta-item"><small>Servis Kayıt Tarihi</small><strong>@Model.CreatedAt.ToString("dd.MM.yyyy HH:mm")</strong></div>@if(Model.ServiceSentDate.HasValue){<div class="meta-item"><small>Servise Gidiş Tarihi</small><strong>@Model.ServiceSentDate.Value.ToString("dd.MM.yyyy")</strong></div>}<div class="meta-item"><small>Gönderilen Servis</small><strong>@(string.IsNullOrWhiteSpace(Model.SentToService)?"-":Model.SentToService)</strong></div>
+                <div class="meta-item"><small>Gönderen / Müşteri</small><strong>@(string.IsNullOrWhiteSpace(Model.Sender)?"-":Model.Sender)</strong></div><div class="meta-item"><small>Takip No</small><strong class="text-primary">@Model.TrackingNumber</strong></div>
+                <div class="meta-item"><small>Müşteri Telefonu</small>@if(string.IsNullOrWhiteSpace(Model.CustomerPhone)){<strong>-</strong>}else{<a class="contact-link" href="tel:@Model.CustomerPhone"><i class="bi bi-telephone me-1"></i>@Model.CustomerPhone</a>}</div>
+                <div class="meta-item"><small>Müşteri E-postası</small>@if(string.IsNullOrWhiteSpace(Model.CustomerEmail)){<strong>-</strong>}else{<a class="contact-link" href="mailto:@Model.CustomerEmail"><i class="bi bi-envelope me-1"></i>@Model.CustomerEmail</a>}</div>
+                <div class="meta-item"><small>Garanti Durumu</small><strong>@(Model.IsUnderWarranty?"Garantili":"Garantisiz")</strong></div><div class="meta-item"><small>Aksesuar</small><strong>@(string.IsNullOrWhiteSpace(Model.Accessories)?"-":Model.Accessories)</strong></div>
+                <div class="meta-item"><small>Servis Ücreti</small><strong>@priceText</strong></div><div class="meta-item"><small>KDV Durumu</small><strong>@(Model.HasCharge ? vatMode : "-")</strong></div>
+            </div>
+            <div class="mt-3 meta-item"><small>Arızalı Ürün Nedeni</small><span style="white-space:pre-line">@Model.FaultReason</span></div>
+            <div class="mt-3 meta-item"><small>Kayıt Notu</small><span style="white-space:pre-line">@(string.IsNullOrWhiteSpace(Model.Notes)?"-":Model.Notes)</span></div>
+        </div>
+
+        <div class="app-card overflow-hidden mb-4">
+            <div class="card-pad"><div class="section-title">Parça Bilgileri</div><div class="section-sub">Takılan ve çıkarılan parçalar</div></div>
+            <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th class="ps-4">Tür</th><th>Parça Adı</th><th>Seri No</th><th class="pe-4">Adet</th></tr></thead><tbody>
+            @if(!Model.Parts.Any()){<tr><td colspan="4" class="text-center text-muted py-4">Parça bilgisi bulunmuyor.</td></tr>}
+            @foreach(var p in Model.Parts){<tr><td class="ps-4"><span class="badge @(p.PartType=="Takılan"?"text-bg-success":"text-bg-danger")">@p.PartType</span></td><td><strong>@p.PartName</strong></td><td><code>@(string.IsNullOrWhiteSpace(p.SerialNumber)?"-":p.SerialNumber)</code></td><td class="pe-4">@p.Quantity</td></tr>}
+            </tbody></table></div>
+        </div>
+
+        <div class="app-card card-pad mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3"><div><div class="section-title">Kontrol Sonucu</div><div class="section-sub">Teknik servis tarafından girilen sonuç</div></div>@if(!Model.IsDeleted && !delivered){<a asp-action="Control" asp-route-id="@Model.Id" class="btn btn-sm btn-outline-primary">@(controlDone?"Kontrolü Düzenle":"Kontrol Gir")</a>}</div>
+            @if(!controlDone){<div class="empty-state"><i class="bi bi-clipboard2-pulse"></i><strong>Henüz kontrol yapılmadı</strong><small>Servis ücreti, garanti, not ve yapılan işlem kontrol ekranından girilir.</small></div>}
+            else{
+                <div class="meta-grid mb-3"><div class="meta-item"><small>Servis Ücreti</small><strong>@priceText</strong></div><div class="meta-item"><small>KDV Durumu</small><strong>@(Model.HasCharge ? vatMode : "-")</strong></div><div class="meta-item"><small>Garanti</small><strong>@(Model.IsUnderWarranty?"Garantili":"Garantisiz")</strong></div></div>
+                <div class="meta-item"><small>Yapılan İşlem</small><span style="white-space:pre-line">@Model.ServiceResult</span></div>
+                <div class="meta-item mt-3"><small>Kontrol Notu</small><span style="white-space:pre-line">@(string.IsNullOrWhiteSpace(Model.ControlNotes)?"-":Model.ControlNotes)</span></div>
+            }
+        </div>
+
+        <details class="app-card card-pad mb-4 details-clean">
+            <summary><span><strong>Cihaz Geçmişi</strong><small>Aynı seri numarasıyla daha önce açılan servis kayıtları</small></span><i class="bi bi-chevron-down"></i></summary>
+            <div class="details-clean-body"><div class="d-flex justify-content-end mb-3"><a asp-action="DeviceHistory" asp-route-serialNumber="@Model.SerialNumber" class="btn btn-sm btn-outline-primary">Tüm Geçmiş</a></div>
+            @if(!deviceHistory.Any()){<div class="text-muted small">Bu cihazın daha önce servis kaydı bulunmuyor.</div>}else{<div class="device-history-list">@foreach(var h in deviceHistory){<a asp-action="Details" asp-route-id="@h.Id" class="device-history-item"><span><strong>@h.TrackingNumber</strong><small>@h.CreatedAt.ToString("dd.MM.yyyy") · @h.Status</small></span><span class="text-end"><strong>@h.FaultReason</strong><small>@(string.IsNullOrWhiteSpace(h.ServiceResult)?"İşlem sonucu yok":h.ServiceResult)</small></span></a>}</div>}
+        </div>
+        </details>
+
+        <details class="app-card card-pad details-clean">
+            <summary><span><strong>Kayıt Geçmişi</strong><small>Son 20 işlem · gerektiğinde açın</small></span><i class="bi bi-chevron-down"></i></summary>
+            <div class="details-clean-body">
+            <div class="d-flex justify-content-end gap-2 mb-3">@if(User.IsInRole("Admin") && (int)(ViewBag.LogTotal ?? logs.Count) > 20){<a asp-controller="Admin" asp-action="Logs" asp-route-entityType="ServiceRecord" asp-route-search="@Model.Id" class="btn btn-sm btn-outline-primary">Tüm Loglar</a>}</div><div class="timeline">
+            @if(!logs.Any()){<div class="text-muted">Bu kayıt için log bulunamadı.</div>}
+            @foreach(var log in logs){var changes=AyazTekServis.Services.AuditChangeFormatter.Describe(log.OldValues,log.NewValues);<div class="timeline-item"><strong>@log.Action</strong><div>@log.Description</div>@if(changes.Any()){<div class="audit-changes mt-2">@foreach(var change in changes){<span>@change</span>}</div>}<small>@log.Username · @log.CreatedAt.ToString("dd.MM.yyyy HH:mm:ss")</small></div>}
+            </div>
+            </div>
+        </details>
+    </div>
+
+    <div class="col-xl-4">
+        <div class="app-card card-pad mb-4">
+            <div class="section-title mb-3">Teslim Durumu</div>
+            @if(delivered){<div class="delivery-success"><i class="bi bi-check-circle-fill"></i><div><strong>Teslim tamamlandı</strong><small>@Model.DeliveryDate?.ToString("dd.MM.yyyy") · @Model.DeliveryMethod</small></div></div>}
+            else{<div class="delivery-pending"><i class="bi bi-hourglass-split"></i><div><strong>Henüz teslim edilmedi</strong><small>@(controlDone?"Kontrol tamamlandı, teslim işlemi yapılabilir.":"Önce ürün kontrolünü tamamlayın.")</small></div></div>}
+            @if(!Model.IsDeleted && Model.Status == "Teslime Hazır"){<a asp-action="Delivery" asp-route-id="@Model.Id" class="btn btn-success w-100 mt-3"><i class="bi bi-box-arrow-right me-1"></i> Teslim İşlemi</a>}
+            else if(!Model.IsDeleted && !delivered){<a asp-action="Control" asp-route-id="@Model.Id" class="btn btn-outline-primary w-100 mt-3"><i class="bi bi-clipboard2-pulse me-1"></i> Kontrole Git</a>}
+            @if(!Model.IsDeleted && !string.IsNullOrWhiteSpace(Model.CustomerEmail) && new[] { "Kayıt Açıldı", "Serviste", "Parça Bekliyor", "Müşteri Onayı Bekliyor", "Teslime Hazır", "İade Edildi", "Onarılamadı" }.Contains(Model.Status))
+            {
+                <form asp-action="SendCustomerNotification" asp-route-id="@Model.Id" method="post" class="mt-2">
+                    @Html.AntiForgeryToken()
+                    <button class="btn btn-outline-primary w-100"><i class="bi bi-envelope"></i><span>Durum Mailini Tekrar Gönder</span></button>
+                </form>
+            }
+        </div>
+
+        <div class="app-card card-pad mb-4 no-print"><div class="section-title mb-2">Formlar ve Çıktılar</div><div class="section-sub mb-3">Bu kaydı Excel olarak indirebilir veya yazdırılabilir PDF formunu açabilirsiniz.</div><div class="d-grid gap-2"><a asp-action="ExportSingleExcel" asp-route-id="@Model.Id" class="btn btn-outline-success"><i class="bi bi-file-earmark-excel me-2"></i>Bu Kaydı Excel İndir</a><a asp-action="ServiceReport" asp-route-id="@Model.Id" target="_blank" class="btn btn-outline-danger"><i class="bi bi-file-earmark-pdf me-2"></i>Servis Kayıt Formu / PDF</a>@if(delivered){<a asp-action="DeliveryReport" asp-route-id="@Model.Id" target="_blank" class="btn btn-outline-primary"><i class="bi bi-file-earmark-check me-2"></i>Teslim Formu / PDF</a>}</div></div>
+
+        @if(!Model.IsDeleted){<div class="app-card card-pad"><div class="small text-muted mb-2">Kayıt: <strong class="text-body">@Model.CreatedByUsername</strong> · @Model.CreatedAt.ToString("dd.MM.yyyy HH:mm")</div>@if(Model.UpdatedAt.HasValue){<div class="small text-muted">Son güncelleme: <strong class="text-body">@Model.UpdatedByUsername</strong> · @Model.UpdatedAt.Value.ToString("dd.MM.yyyy HH:mm")</div>}<div class="danger-zone rounded-3 p-3 mt-4"><div class="fw-bold text-danger mb-1">Hatalı kayıt mı?</div><small class="text-muted d-block mb-2">Kayıt güvenli biçimde çöp kutusuna taşınır.</small><form asp-action="Delete" asp-route-id="@Model.Id" method="post" onsubmit="return confirm('Bu servis kaydı silinsin mi?');">@Html.AntiForgeryToken()<button class="btn btn-outline-danger btn-sm w-100"><i class="bi bi-trash3 me-1"></i> Kaydı Sil</button></form></div></div>}
+    </div>
+</div>

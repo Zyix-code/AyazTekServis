@@ -1,0 +1,42 @@
+@model AyazTekServis.Models.User
+@using AyazTekServis.Models
+@{
+    ViewData["Title"]="Hesap Ayarları";
+    var questions = ViewBag.SecurityQuestions as string[] ?? Array.Empty<string>();
+    var logs = ViewBag.UserLogs as IReadOnlyList<AuditLog> ?? new List<AuditLog>();
+    var logPage = (int)(ViewBag.LogPage ?? 1);
+    var logTotalPages = (int)(ViewBag.LogTotalPages ?? 1);
+    var themePreference = (ViewBag.ThemePreference as string) ?? Model.ThemePreference ?? "system";
+}
+<div class="page-head"><div><div class="eyebrow">Hesap ve Güvenlik</div><h1>Hesap Ayarları</h1><p>Profil, parola, güvenlik sorusu ve kişisel işlem geçmişinizi yönetin.</p></div>@if(User.IsInRole("Admin")){<a asp-controller="Admin" asp-action="Index" class="btn btn-dark"><i class="bi bi-shield-check me-1"></i> Admin Paneli</a>}</div>
+<div class="app-card card-pad mb-4 appearance-settings-card">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div>
+            <div class="section-title">Görünüm</div>
+            <div class="section-sub">Tema tercihiniz hesabınıza kaydedilir ve kullandığınız tüm cihazlarda uygulanır.</div>
+        </div>
+        <form asp-action="UpdateTheme" method="post" class="theme-preference-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="returnUrl" value="@Context.Request.Path@Context.Request.QueryString" />
+            <div class="theme-choice-group" role="group" aria-label="Tema tercihi">
+                <button type="submit" name="themePreference" value="system" class="theme-choice @(themePreference == "system" ? "active" : "")">
+                    <i class="bi bi-display"></i><span>Sistem Varsayılanı</span>
+                </button>
+                <button type="submit" name="themePreference" value="light" class="theme-choice @(themePreference == "light" ? "active" : "")">
+                    <i class="bi bi-sun-fill"></i><span>Açık</span>
+                </button>
+                <button type="submit" name="themePreference" value="dark" class="theme-choice @(themePreference == "dark" ? "active" : "")">
+                    <i class="bi bi-moon-stars-fill"></i><span>Koyu</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="row g-4"><div class="col-xl-7"><div class="app-card card-pad">@if(ViewBag.Error!=null){<div class="alert alert-danger">@ViewBag.Error</div>}@if(ViewBag.Success!=null){<div class="alert alert-success">@ViewBag.Success</div>}<form asp-action="Settings" method="post">@Html.AntiForgeryToken()<div class="row g-3">
+<div class="col-md-6"><label class="form-label fw-bold">Kullanıcı Adı</label><input name="username" value="@Model.Username" class="form-control" autocomplete="username" autocapitalize="off" spellcheck="false" required/></div><div class="col-md-6"><label class="form-label fw-bold">E-posta</label><input name="email" value="@Model.Email" type="email" class="form-control" required/></div>
+<div class="col-12"><hr/><div class="section-title mb-2">Güvenlik Sorusu</div></div><div class="col-12"><label class="form-label fw-bold">Soru</label><select name="securityQuestion" class="form-select" required><option value="">Seçin...</option>@foreach(var q in questions){<option value="@q" selected="@(Model.SecurityQuestion==q)">@q</option>}</select></div><div class="col-12"><label class="form-label fw-bold">Yeni Güvenlik Cevabı</label><input name="securityAnswer" class="form-control" autocomplete="off" placeholder="Değişmeyecekse boş bırakın"/><small class="text-muted">Değişmeyecekse boş bırakabilirsiniz.</small></div>
+<div class="col-12"><hr/><div class="section-title mb-2">Parola</div></div><div class="col-md-6"><label class="form-label fw-bold">Yeni Şifre</label><input name="newPassword" type="password" class="form-control" minlength="6" maxlength="256" placeholder="Değişmeyecekse boş bırakın"/><small class="text-muted">En az 6 karakter ve karmaşık parola.</small></div><div class="col-md-6"><label class="form-label fw-bold">Mevcut Şifre *</label><input name="currentPassword" type="password" class="form-control" maxlength="256" required/></div><div class="col-12 text-end"><button class="btn btn-primary px-5 fw-bold">Kaydet</button></div></div></form></div></div>
+<div class="col-xl-5"><div class="app-card overflow-hidden"><div class="card-pad border-bottom"><div class="d-flex justify-content-between align-items-start gap-2"><div><div class="section-title">İşlem Geçmişim</div><div class="section-sub">Kendi hesabınıza ait loglar · sayfa başına 10 kayıt</div></div><span class="badge text-bg-light border">@(ViewBag.LogTotal ?? logs.Count) kayıt</span></div>
+<form method="get" asp-action="Settings" class="row g-2 mt-2"><div class="col-12"><input name="logAction" value="@ViewBag.LogAction" class="form-control form-control-sm" placeholder="İşlem türünde ara..."/></div><div class="col-6"><input type="date" name="logDateFrom" value="@ViewBag.LogDateFrom" class="form-control form-control-sm" aria-label="Başlangıç tarihi"/></div><div class="col-6"><input type="date" name="logDateTo" value="@ViewBag.LogDateTo" class="form-control form-control-sm" aria-label="Bitiş tarihi"/></div><div class="col-8 d-grid"><button class="btn btn-sm btn-dark"><i class="bi bi-funnel me-1"></i>Filtrele</button></div><div class="col-4 d-grid"><a asp-action="Settings" class="btn btn-sm btn-outline-secondary">Temizle</a></div></form></div>
+<div class="user-log-list">@if(!logs.Any()){<div class="empty-state m-3"><i class="bi bi-clock-history"></i><strong>Log bulunamadı</strong><small>Seçtiğiniz filtreye uygun işlem geçmişi yok.</small></div>}@foreach(var l in logs){var danger=l.Action.Contains("Hata",StringComparison.OrdinalIgnoreCase)||l.Action.Contains("Kalıcı",StringComparison.OrdinalIgnoreCase);var warning=l.Action.Contains("Sil",StringComparison.OrdinalIgnoreCase)||l.Action.Contains("İade",StringComparison.OrdinalIgnoreCase)||l.Action.Contains("Uyarı",StringComparison.OrdinalIgnoreCase);var cls=danger?"danger":warning?"warning":"success";var icon=danger?"bi-x-octagon-fill":warning?"bi-exclamation-triangle-fill":"bi-check-circle-fill";var changes=AyazTekServis.Services.AuditChangeFormatter.Describe(l.OldValues,l.NewValues);<div class="user-log-item"><div class="user-log-icon log-icon-@cls"><i class="bi @icon"></i></div><div class="flex-grow-1 min-w-0"><div class="d-flex justify-content-between gap-2"><strong class="text-truncate">@l.Action</strong><small class="text-nowrap text-muted">@l.CreatedAt.ToString("dd.MM.yyyy HH:mm")</small></div><small class="text-muted d-block text-break mt-1">@l.Description</small>@if(changes.Any()){<div class="audit-changes mt-2">@foreach(var c in changes){<span>@c</span>}</div>}</div></div>}</div>
+@if(logTotalPages > 1){<div class="card-pad border-top pt-3 d-flex justify-content-between align-items-center gap-2"><small class="text-muted">Sayfa @logPage / @logTotalPages</small><div class="d-flex gap-2"><a asp-action="Settings" asp-route-logAction="@ViewBag.LogAction" asp-route-logDateFrom="@ViewBag.LogDateFrom" asp-route-logDateTo="@ViewBag.LogDateTo" asp-route-logPage="@(logPage-1)" class="btn btn-sm btn-outline-secondary @(logPage<=1?"disabled":"")">Önceki</a><a asp-action="Settings" asp-route-logAction="@ViewBag.LogAction" asp-route-logDateFrom="@ViewBag.LogDateFrom" asp-route-logDateTo="@ViewBag.LogDateTo" asp-route-logPage="@(logPage+1)" class="btn btn-sm btn-outline-secondary @(logPage>=logTotalPages?"disabled":"")">Sonraki</a></div></div>}</div></div></div>

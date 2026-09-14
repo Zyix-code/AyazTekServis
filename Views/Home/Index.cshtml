@@ -1,0 +1,58 @@
+@model AyazTekServis.ViewModels.DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">Genel Bakış</div>
+        <h1>Servis Yönetim Paneli</h1>
+        <p>Aktif servis kayıtlarını, durumları ve son hareketleri tek ekrandan takip edin.</p>
+    </div>
+    <a asp-controller="Service" asp-action="AddService" class="btn btn-primary px-4 py-2 rounded-3 fw-bold"><i class="bi bi-plus-lg me-1"></i> Yeni Servis Kaydı</a>
+</div>
+@if (User.IsInRole("Admin"))
+{
+    <div class="app-card card-pad mb-4 d-flex flex-wrap align-items-center gap-3 border border-primary-subtle">
+        <div class="stat-icon"><i class="bi bi-shield-check"></i></div>
+        <div class="flex-grow-1"><div class="section-title">Yönetici araçları hazır</div><div class="section-sub">Kullanıcı onayları, audit logları, e-posta, yedek ve sistem ayarları.</div></div>
+        <a asp-controller="Admin" asp-action="Index" class="btn btn-dark"><i class="bi bi-speedometer2 me-1"></i> Admin Panelini Aç</a>
+    </div>
+}
+<div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3"><div class="app-card stat-card"><div><div class="value">@Model.Total</div><div class="label">Toplam Aktif Kayıt</div></div><div class="stat-icon"><i class="bi bi-hdd-stack"></i></div></div></div>
+    <div class="col-6 col-xl-3"><div class="app-card stat-card"><div><div class="value">@Model.InService</div><div class="label">Serviste</div></div><div class="stat-icon"><i class="bi bi-tools"></i></div></div></div>
+    <div class="col-6 col-xl-3"><div class="app-card stat-card"><div><div class="value">@Model.Waiting</div><div class="label">Beklemede</div></div><div class="stat-icon"><i class="bi bi-hourglass-split"></i></div></div></div>
+    <div class="col-6 col-xl-3"><a asp-controller="Service" asp-action="DeliveryQueue" class="text-decoration-none text-reset d-block h-100"><div class="app-card stat-card h-100 dashboard-link-card"><div><div class="value">@Model.Ready</div><div class="label">Teslime Hazır</div><small class="text-primary">Teslim ekranını aç</small></div><div class="stat-icon"><i class="bi bi-box2-heart"></i></div></div></a></div>
+</div>
+<div class="row g-3 mb-4 service-alert-grid">
+    <div class="col-md-4"><a asp-controller="Notifications" asp-action="Index" asp-route-type="preservice" class="text-decoration-none text-reset"><div class="app-card service-threshold-card threshold-info h-100"><span class="threshold-icon"><i class="bi bi-clock-history"></i></span><div><strong>0-7 İş Günü</strong><span>@ViewBag.PreService0To7 kayıt henüz servise gönderilmeyi bekliyor.</span>@if((int)(ViewBag.PreServiceOverdue ?? 0)>0){<small class="text-danger fw-semibold">@ViewBag.PreServiceOverdue kayıt 8+ iş gününde gecikmiş.</small>}</div></div></a></div>
+    <div class="col-md-4"><a asp-controller="Notifications" asp-action="Index" asp-route-type="warning" class="text-decoration-none text-reset"><div class="app-card service-threshold-card threshold-warning h-100"><span class="threshold-icon"><i class="bi bi-exclamation-triangle-fill"></i></span><div><strong>18-19 İş Günü</strong><span>@ViewBag.Warning18To19 servis kaydı yasal sınıra çok yakın.</span></div></div></a></div>
+    <div class="col-md-4"><a asp-controller="Notifications" asp-action="Index" asp-route-type="danger" class="text-decoration-none text-reset"><div class="app-card service-threshold-card threshold-danger h-100"><span class="threshold-icon"><i class="bi bi-exclamation-octagon-fill"></i></span><div><strong>20+ İş Günü</strong><span>@ViewBag.Overdue20 servis kaydı yasal süreye ulaştı veya aştı.</span></div></div></a></div>
+</div>
+<div class="row g-4">
+    <div class="col-xl-8">
+        <div class="app-card overflow-hidden">
+            <div class="card-pad d-flex justify-content-between align-items-center"><div><div class="section-title">Son Servis Kayıtları</div><div class="section-sub">En son oluşturulan 8 kayıt</div></div><a asp-controller="Service" asp-action="Index" class="btn btn-sm btn-outline-primary">Tümünü Gör</a></div>
+            <div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th class="ps-4">Servis No</th><th>Gönderen</th><th>Ürün</th><th>Durum</th><th class="text-end pe-4">İşlem</th></tr></thead><tbody>
+            @if (!Model.Recent.Any()) { <tr><td colspan="5" class="text-center text-muted py-5">Henüz servis kaydı yok.</td></tr> }
+            @foreach (var r in Model.Recent) {
+                <tr><td class="ps-4"><strong>@r.TrackingNumber</strong><small class="d-block text-muted">@r.CreatedAt.ToString("dd.MM.yyyy")</small></td><td>@r.Sender</td><td><strong>@r.Brand @r.Model</strong><small class="d-block text-muted">@r.SerialNumber</small></td><td><span class="badge text-bg-light">@r.Status</span></td><td class="text-end pe-4"><a asp-controller="Service" asp-action="Details" asp-route-id="@r.Id" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-right"></i></a></td></tr>
+            }
+            </tbody></table></div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="app-card card-pad h-100">
+            <div class="section-title mb-3">Durum Özeti</div>
+            <div class="d-grid gap-3">
+                <div class="d-flex justify-content-between"><span class="text-muted">Yeni kayıt</span><strong>@Model.Open</strong></div>
+                <div class="d-flex justify-content-between"><span class="text-muted">Serviste</span><strong>@Model.InService</strong></div>
+                <div class="d-flex justify-content-between"><span class="text-muted">Beklemede</span><strong>@Model.Waiting</strong></div>
+                <div class="d-flex justify-content-between"><span class="text-muted">Teslime hazır</span><strong>@Model.Ready</strong></div>
+                <div class="d-flex justify-content-between"><span class="text-muted">Tamamlanan / İade</span><strong>@Model.Completed</strong></div>
+                <hr class="my-1" />
+                <div class="d-flex justify-content-between"><span class="text-muted">Garantili ürün</span><strong>@Model.UnderWarranty</strong></div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,27 @@
+@using AyazTekServis.Models
+@{
+    ViewData["Title"] = "E-posta Gönder";
+    var users = ViewBag.Users as IReadOnlyList<User> ?? new List<User>();
+    int? selected = ViewBag.SelectedUserId as int?;
+}
+<div class="page-head"><div><div class="eyebrow">İletişim</div><h1>E-posta Gönder</h1><p>Alıcı yöntemini seçin. Kayıtlı kullanıcı ve manuel adres aynı anda kullanılamaz.</p></div></div>
+<div class="row justify-content-center"><div class="col-xxl-8 col-xl-9"><div class="app-card card-pad">
+@if(ViewBag.SmtpConfigured != true){<div class="alert alert-warning app-alert"><i class="bi bi-exclamation-triangle-fill"></i><div><strong>SMTP yapılandırılmamış.</strong><div>Sistem ayarlarından e-posta ayarlarını tamamlayın.</div></div></div>}
+<form asp-action="SendEmail" method="post" id="emailForm">@Html.AntiForgeryToken()
+<div class="recipient-mode-grid mb-4">
+<label class="recipient-mode-card"><input type="radio" name="recipientMode" value="user" id="modeUser" @(selected.HasValue?"checked":null)><span><i class="bi bi-person-check"></i><strong>Kayıtlı Kullanıcı</strong><small>Sistemde kayıtlı bir kullanıcı seçin.</small></span></label>
+<label class="recipient-mode-card"><input type="radio" name="recipientMode" value="manual" id="modeManual" @(!selected.HasValue?"checked":null)><span><i class="bi bi-envelope-at"></i><strong>Manuel E-posta</strong><small>Harici bir e-posta adresi yazın.</small></span></label>
+</div>
+<div class="row g-3 mb-4"><div class="col-md-6" id="userRecipientPanel"><label class="form-label fw-semibold">Kayıtlı Kullanıcı</label><select name="userId" id="userIdSelect" class="form-select"><option value="">Kullanıcı seçin...</option>@foreach(var u in users){<option value="@u.Id" selected="@(selected==u.Id)">@u.Username — @u.Email</option>}</select></div>
+<div class="col-md-6" id="manualRecipientPanel"><label class="form-label fw-semibold">Manuel E-posta</label><input name="recipient" id="manualRecipient" type="email" class="form-control" placeholder="ornek@firma.com" /></div></div>
+<div class="row g-3"><div class="col-12"><label class="form-label fw-bold">Konu</label><input name="subject" class="form-control" maxlength="200" required /></div><div class="col-12"><label class="form-label fw-bold">Mesaj</label><textarea name="body" class="form-control" rows="9" maxlength="10000" required></textarea></div><div class="col-12 text-end"><button class="btn btn-primary px-4 fw-bold"><i class="bi bi-send me-2"></i>Gönder</button></div></div>
+</form></div></div></div>
+@section Scripts {<script>
+(() => {
+ const modeUser=document.getElementById('modeUser'), modeManual=document.getElementById('modeManual');
+ const user=document.getElementById('userIdSelect'), manual=document.getElementById('manualRecipient');
+ const up=document.getElementById('userRecipientPanel'), mp=document.getElementById('manualRecipientPanel');
+ function sync(){const useUser=modeUser.checked; user.disabled=!useUser; manual.disabled=useUser; up.classList.toggle('recipient-panel-disabled',!useUser); mp.classList.toggle('recipient-panel-disabled',useUser); if(useUser) manual.value=''; else user.value='';}
+ modeUser.addEventListener('change',sync); modeManual.addEventListener('change',sync); sync();
+})();
+</script>}

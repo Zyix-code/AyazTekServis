@@ -1,0 +1,65 @@
+@inject AyazTekServis.Services.BusinessDayService BusinessDays
+@model IReadOnlyList<AyazTekServis.Models.ServiceRecord>
+@{
+    ViewData["Title"] = "Servis Kayıtları";
+    var statuses = ViewBag.Statuses as string[] ?? Array.Empty<string>();
+    var currentPage = (int)(ViewBag.Page ?? 1);
+    var totalPages = (int)(ViewBag.TotalPages ?? 1);
+    var pageSize = (int)(ViewBag.PageSize ?? 20);
+    var total = (int)(ViewBag.Total ?? Model.Count);
+}
+<div class="page-head">
+    <div><div class="eyebrow">Servis Yönetimi</div><h1>Arızalı Ürünler</h1><p>Servis kayıtlarını hızlıca arayın, filtreleyin ve yönetin.</p></div>
+    <div class="d-flex flex-wrap gap-2">
+        <a asp-action="ExportExcel" class="btn btn-outline-success px-3 py-2 fw-semibold"><i class="bi bi-file-earmark-excel me-2"></i>Tümünü Excel</a>
+        <a asp-action="AllReport" target="_blank" class="btn btn-outline-danger px-3 py-2 fw-semibold"><i class="bi bi-file-earmark-pdf me-2"></i>Tümünü PDF</a>
+        <a asp-action="AddService" class="btn btn-primary px-4 py-2 fw-bold"><i class="bi bi-plus-lg me-2"></i>Yeni Kayıt</a>
+    </div>
+</div>
+<div class="app-card card-pad mb-4">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-xl-4 col-lg-6"><label class="form-label small fw-bold">Arama</label><div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span><input name="search" value="@ViewBag.Search" class="form-control" placeholder="Servis no, gönderen, marka, model, seri no..." /></div></div>
+        <div class="col-xl-2 col-lg-3"><label class="form-label small fw-bold">Durum</label><select name="status" class="form-select"><option value="">Tümü</option>@foreach(var s in statuses){<option value="@s" selected="@(ViewBag.Status == s)">@s</option>}</select></div>
+        <div class="col-xl-2 col-lg-3"><label class="form-label small fw-bold">Garanti</label><select name="warranty" class="form-select"><option value="">Tümü</option><option value="yes" selected="@(ViewBag.Warranty == "yes")">Garantili</option><option value="no" selected="@(ViewBag.Warranty == "no")">Garantisiz</option></select></div>
+        <div class="col-xl-2 col-lg-3"><label class="form-label small fw-bold">Para Birimi</label><select name="currency" class="form-select"><option value="">Tümü</option><option value="TRY" selected="@(ViewBag.Currency == "TRY")">TRY</option><option value="USD" selected="@(ViewBag.Currency == "USD")">USD</option><option value="EUR" selected="@(ViewBag.Currency == "EUR")">EUR</option></select></div>
+        <div class="col-xl-2 col-lg-3"><label class="form-label small fw-bold">Sayfa</label><select name="pageSize" class="form-select"><option value="20" selected="@(pageSize == 20)">20 kayıt</option><option value="50" selected="@(pageSize == 50)">50 kayıt</option><option value="100" selected="@(pageSize == 100)">100 kayıt</option></select></div>
+        <div class="col-xl-2 col-lg-3"><label class="form-label small fw-bold">Kayıt Başlangıç</label><input type="date" name="dateFrom" value="@ViewBag.DateFrom" class="form-control" /></div>
+        <div class="col-xl-2 col-lg-3"><label class="form-label small fw-bold">Kayıt Bitiş</label><input type="date" name="dateTo" value="@ViewBag.DateTo" class="form-control" /></div>
+        @if(User.IsInRole("Admin")){<div class="col-lg-3"><div class="form-check form-switch pt-2"><input class="form-check-input" type="checkbox" name="showDeleted" value="true" id="showDeleted" checked="@(ViewBag.ShowDeleted == true)"/><label class="form-check-label" for="showDeleted">Silinenleri de göster</label></div></div>}
+        <div class="col-lg-3 ms-auto d-flex gap-2"><button class="btn btn-dark flex-fill"><i class="bi bi-funnel me-1"></i> Filtrele</button><a asp-action="Index" class="btn btn-outline-secondary" title="Filtreleri temizle"><i class="bi bi-x-lg"></i></a></div>
+    </form>
+</div>
+<div class="app-card overflow-hidden">
+    <div class="list-toolbar"><div><strong>@total</strong> kayıt bulundu</div><div class="text-muted">Sayfa @currentPage / @totalPages</div></div>
+    <div class="table-responsive app-table-scroll">
+        <table class="table table-hover align-middle mb-0 service-table">
+            <thead><tr><th class="ps-4">Servis No</th><th>Gönderen</th><th>Ürün</th><th>Seri No</th><th>Garanti / Ücret</th><th>Durum</th><th>Servis Süresi</th><th>Son İşlem</th><th class="text-end pe-4">İşlem</th></tr></thead>
+            <tbody>
+            @if(!Model.Any()){<tr><td colspan="9" class="text-center py-5 text-muted"><i class="bi bi-inbox fs-2 d-block mb-2"></i>Kriterlere uygun kayıt bulunamadı.</td></tr>}
+            @foreach(var item in Model){
+                <tr class="@(item.IsDeleted ? "opacity-50" : "")">
+                    <td class="ps-4"><strong class="text-primary">@item.TrackingNumber</strong><small class="d-block text-muted">@item.CreatedAt.ToString("dd.MM.yyyy")</small></td>
+                    <td><strong>@(string.IsNullOrWhiteSpace(item.Sender) ? "-" : item.Sender)</strong><small class="d-block text-muted">@item.SentToService</small></td>
+                    <td><strong>@item.Brand @item.Model</strong><small class="d-block text-muted">@item.ProductType</small></td>
+                    <td><code>@item.SerialNumber</code></td>
+                    <td><span class="badge @(item.IsUnderWarranty ? "text-bg-success" : "text-bg-secondary")">@(item.IsUnderWarranty ? "Garantili" : "Garantisiz")</span>@if(item.HasCharge){var cur=item.ChargeCurrency=="TRY"?"TL":item.ChargeCurrency;var vat=string.IsNullOrWhiteSpace(item.ChargeVatMode)?"KDV Hariç":item.ChargeVatMode;<small class="d-block mt-1 fw-bold">@item.ChargeAmount?.ToString("N2") @cur @(vat=="KDV Hariç"?"+ KDV":"(KDV Dahil)")</small>}</td>
+                    <td>@if(item.IsDeleted){<span class="badge text-bg-danger">Silindi</span>}else{<span class="badge text-bg-light border">@item.Status</span>}</td>
+                    <td>@{var days=BusinessDays.Count(item);var lvl=BusinessDays.Level(item);}<span class="duration-chip duration-@lvl">@days iş günü</span><small class="d-block text-muted mt-1">@BusinessDays.Describe(item)</small></td>
+                    <td><small>@((item.UpdatedAt ?? item.CreatedAt).ToString("dd.MM.yyyy HH:mm"))</small><small class="d-block text-muted">@(string.IsNullOrWhiteSpace(item.UpdatedByUsername) ? item.CreatedByUsername : item.UpdatedByUsername)</small></td>
+                    <td class="text-end pe-4"><div class="d-inline-flex flex-wrap justify-content-end gap-2"><a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary" title="Detay"><i class="bi bi-eye"></i></a>@if(!item.IsDeleted){<a asp-action="ExportSingleExcel" asp-route-id="@item.Id" class="btn btn-sm btn-outline-success" title="Excel"><i class="bi bi-file-earmark-excel"></i></a><a asp-action="ServiceReport" asp-route-id="@item.Id" target="_blank" class="btn btn-sm btn-outline-danger" title="PDF / Yazdır"><i class="bi bi-file-earmark-pdf"></i></a><a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary" title="Düzenle"><i class="bi bi-pencil"></i></a>}else if(User.IsInRole("Admin")){<form asp-action="Restore" asp-route-id="@item.Id" method="post" class="d-inline">@Html.AntiForgeryToken()<button class="btn btn-sm btn-outline-success" title="Geri yükle"><i class="bi bi-arrow-counterclockwise"></i></button></form><form asp-action="PermanentDelete" asp-route-id="@item.Id" method="post" class="d-inline" onsubmit="return confirm('Bu kayıt kalıcı olarak silinecek. Bu işlem geri alınamaz. Devam edilsin mi?');">@Html.AntiForgeryToken()<button class="btn btn-sm btn-danger" title="Kalıcı sil"><i class="bi bi-trash3-fill"></i></button></form>}</div></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    @if(totalPages > 1){
+        <div class="pagination-bar">
+            <small class="text-muted">@total kayıt · @pageSize kayıt/sayfa</small>
+            <nav aria-label="Servis kayıtları sayfalama"><ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(currentPage <= 1 ? "disabled" : "")"><a class="page-link" asp-action="Index" asp-route-search="@ViewBag.Search" asp-route-status="@ViewBag.Status" asp-route-warranty="@ViewBag.Warranty" asp-route-currency="@ViewBag.Currency" asp-route-dateFrom="@ViewBag.DateFrom" asp-route-dateTo="@ViewBag.DateTo" asp-route-showDeleted="@ViewBag.ShowDeleted" asp-route-pageSize="@pageSize" asp-route-page="@(currentPage-1)">Önceki</a></li>
+                <li class="page-item disabled"><span class="page-link">@currentPage / @totalPages</span></li>
+                <li class="page-item @(currentPage >= totalPages ? "disabled" : "")"><a class="page-link" asp-action="Index" asp-route-search="@ViewBag.Search" asp-route-status="@ViewBag.Status" asp-route-warranty="@ViewBag.Warranty" asp-route-currency="@ViewBag.Currency" asp-route-dateFrom="@ViewBag.DateFrom" asp-route-dateTo="@ViewBag.DateTo" asp-route-showDeleted="@ViewBag.ShowDeleted" asp-route-pageSize="@pageSize" asp-route-page="@(currentPage+1)">Sonraki</a></li>
+            </ul></nav>
+        </div>
+    }
+</div>

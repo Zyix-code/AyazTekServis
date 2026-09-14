@@ -1,0 +1,25 @@
+@model AyazTekServis.Models.ServiceRecord
+@{ ViewData["Title"]="Yeni Arızalı Ürün"; var fresh = ViewBag.Fresh == true; }
+<div class="page-head"><div><div class="eyebrow">1 / 3 · Kayıt</div><h1>Yeni Arızalı Ürün</h1><p>Yalnızca ürün servise girerken bilinen bilgileri kaydedin. Kontrol ve teslim bilgileri sonraki aşamalarda girilir.</p></div><a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i> Listeye Dön</a></div>
+<form asp-action="AddService" method="post" id="serviceForm" autocomplete="off">@Html.AntiForgeryToken()<div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 mb-3"></div><partial name="_IntakeForm" model="Model"/><div class="form-actions"><a asp-action="Index" class="btn btn-outline-secondary px-4">İptal</a><button class="btn btn-primary px-5 fw-bold"><i class="bi bi-check2-circle me-1"></i> Kaydı Oluştur</button></div></form>
+
+<script>
+(() => {
+ const fresh = @((fresh ? "true" : "false"));
+ if(!fresh) return;
+ const clearForm = () => {
+   const form=document.getElementById('serviceForm');
+   if(!form) return;
+   form.reset();
+   form.querySelectorAll('input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]), textarea').forEach(el=>el.value='');
+   const warrantyYes=document.getElementById('warrantyYes'); if(warrantyYes) warrantyYes.checked=true;
+   const parts=document.getElementById('partsContainer'); if(parts) parts.innerHTML='';
+   const empty=document.getElementById('noParts'); if(empty) empty.style.display='flex';
+ };
+ clearForm();
+ window.addEventListener('pageshow', clearForm);
+ window.setTimeout(clearForm, 80);
+ window.setTimeout(clearForm, 300);
+ if(history.replaceState) history.replaceState({}, document.title, '/Service/AddService');
+})();
+</script>

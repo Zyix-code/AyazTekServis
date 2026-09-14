@@ -1,0 +1,17 @@
+@{
+    ViewData["Title"]="Kayıt Başvurusu";
+    var questions = ViewBag.SecurityQuestions as string[] ?? Array.Empty<string>();
+}
+<div class="auth-card auth-card-clean"><div class="auth-card-brand auth-card-brand-small"><img src="~/images/ayaz-teknoloji-logo.jpg" alt="Ayaz Teknoloji" /></div>
+    <h2 class="fw-bold mb-1">Kayıt Başvurusu</h2><p class="text-secondary mb-4">Hesap yönetici onayından sonra aktif olur.</p>
+    @if(ViewBag.Error!=null){<div class="alert alert-danger">@ViewBag.Error</div>}
+    <form asp-action="Register" method="post">@Html.AntiForgeryToken()
+        <div class="mb-3"><label class="form-label fw-bold">Kullanıcı Adı</label><input name="username" value="@ViewBag.Username" class="form-control" autocomplete="username" autocapitalize="off" spellcheck="false" required /></div>
+        <div class="mb-3"><label class="form-label fw-bold">E-posta</label><input name="email" value="@ViewBag.Email" type="email" class="form-control" required /></div>
+        <div class="mb-3"><label class="form-label fw-bold">Güvenlik Sorusu</label><select name="securityQuestion" class="form-select" required><option value="">Seçin...</option>@foreach(var q in questions){<option value="@q" selected="@(ViewBag.SelectedSecurityQuestion==q)">@q</option>}</select></div>
+        <div class="mb-3"><label class="form-label fw-bold">Güvenlik Sorusu Cevabı</label><input name="securityAnswer" class="form-control" autocomplete="off" required /></div>
+        <div class="mb-3"><label class="form-label fw-bold">Şifre</label><input name="password" type="password" class="form-control" autocomplete="new-password" minlength="6" maxlength="256" required /><small class="text-secondary">En az 6 karakter; büyük/küçük harf, rakam ve özel karakter.</small></div>
+        <div class="mb-4"><label class="form-label fw-bold">Şifre Tekrar</label><input name="confirmPassword" type="password" class="form-control" autocomplete="new-password" minlength="6" maxlength="256" required /></div>
+        <button class="btn btn-primary w-100 fw-bold py-2">Başvuruyu Gönder</button>
+    </form><div class="text-center mt-4"><a asp-action="Login" class="small text-decoration-none">← Girişe dön</a></div>
+</div>

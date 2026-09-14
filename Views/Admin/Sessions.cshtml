@@ -1,0 +1,82 @@
+@model IReadOnlyList<AyazTekServis.Models.UserSession>
+@{
+    ViewData["Title"] = "Aktif Oturumlar";
+    var username = (string?)(ViewBag.Username);
+    var currentPage = (int)(ViewBag.Page ?? 1);
+    var totalPages = (int)(ViewBag.TotalPages ?? 1);
+    var total = (int)(ViewBag.Total ?? Model.Count);
+    var pageSize = (int)(ViewBag.PageSize ?? 20);
+}
+<div class="page-head compact-page-head">
+    <div>
+        <div class="eyebrow">Güvenlik</div>
+        <h1>Aktif Oturumlar</h1>
+        <p>Her kullanıcı yalnızca bir kez gösterilir. Bir kullanıcıyı sonlandırdığınızda o kullanıcıya ait tüm aktif oturumlar kapatılır.</p>
+    </div>
+</div>
+
+<div class="app-card card-pad mb-3 compact-filter-card">
+    <form method="get" class="compact-filter-row">
+        <div class="flex-grow-1">
+            <label class="form-label">Kullanıcı</label>
+            <input class="form-control" name="username" value="@username" placeholder="Kullanıcı adı..." />
+        </div>
+        <div class="compact-select-wrap">
+            <label class="form-label">Göster</label>
+            <select class="form-select" name="pageSize">
+                <option value="20" selected="@(pageSize==20)">20</option>
+                <option value="50" selected="@(pageSize==50)">50</option>
+                <option value="100" selected="@(pageSize==100)">100</option>
+            </select>
+        </div>
+        <div class="compact-filter-actions">
+            <button class="btn btn-dark"><i class="bi bi-funnel"></i><span>Filtrele</span></button>
+            <a asp-action="Sessions" class="btn btn-outline-secondary">Temizle</a>
+        </div>
+    </form>
+</div>
+
+<div class="app-card overflow-hidden">
+    <div class="table-responsive sessions-table-wrap">
+        <table class="table align-middle mb-0 sessions-table sessions-table-simple">
+            <thead><tr><th>Kullanıcı</th><th>IP</th><th>Cihaz / Tarayıcı</th><th>Başlangıç</th><th>Son Görülme</th><th>İşlem</th></tr></thead>
+            <tbody>
+            @if(!Model.Any())
+            {
+                <tr><td colspan="6" class="text-center text-muted py-5">Şu anda aktif kullanıcı oturumu bulunmuyor.</td></tr>
+            }
+            @foreach(var x in Model)
+            {
+                var agent = string.IsNullOrWhiteSpace(x.UserAgent) ? "Bilinmiyor" : x.UserAgent;
+                <tr>
+                    <td><strong>@x.Username</strong></td>
+                    <td><code>@x.IpAddress</code></td>
+                    <td><div class="session-agent" title="@agent">@agent</div></td>
+                    <td class="text-nowrap">@x.StartedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                    <td class="text-nowrap">@x.LastSeenAt.ToString("dd.MM.yyyy HH:mm")</td>
+                    <td>
+                        <form asp-action="RevokeUserSessions" method="post" class="m-0">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="userId" value="@x.UserId" />
+                            <button class="btn btn-sm btn-outline-danger session-revoke-btn" onclick="return confirm('@x.Username kullanıcısının tüm aktif oturumları sonlandırılsın mı?')">
+                                <i class="bi bi-x-circle"></i><span>Sonlandır</span>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    @if(totalPages>1)
+    {
+        <div class="card-pad border-top pagination-bar">
+            <small class="text-muted">Sayfa @currentPage / @totalPages · @total aktif kullanıcı</small>
+            <nav><ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(currentPage<=1?"disabled":"")"><a class="page-link" asp-action="Sessions" asp-route-username="@username" asp-route-pageSize="@pageSize" asp-route-page="@(currentPage-1)">Önceki</a></li>
+                <li class="page-item disabled"><span class="page-link">@currentPage</span></li>
+                <li class="page-item @(currentPage>=totalPages?"disabled":"")"><a class="page-link" asp-action="Sessions" asp-route-username="@username" asp-route-pageSize="@pageSize" asp-route-page="@(currentPage+1)">Sonraki</a></li>
+            </ul></nav>
+        </div>
+    }
+</div>
