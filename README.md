@@ -218,3 +218,6 @@ git status
 Bu proje Ayaz Teknoloji teknik servis süreçlerinin günlük kullanımını kolaylaştırmak amacıyla geliştirilmiştir.
 
 Made by Selçuk Şahin
+
+## ⚖️ Lisans
+Bu proje GNU General Public License v3.0 ile lisanslanmıştır. zyixcode tarafından geliştirilen bu projeyi, lisans koşullarına uyarak özgürce kullanabilirsiniz.
