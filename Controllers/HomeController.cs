@@ -23,11 +23,11 @@ public class HomeController(ApplicationDbContext db, BusinessDayService business
             InService = g.Count(x => x.Status == "Serviste" || x.Status == "Onarımda"),
             Waiting = g.Count(x => x.Status == "Beklemede" || x.Status == "Parça Bekliyor" || x.Status == "Müşteri Onayı Bekliyor"),
             Ready = g.Count(x => x.Status == "Teslime Hazır"),
-            Completed = g.Count(x => x.Status == "Tamamlandı" || x.Status == "İade Edildi" || x.Status == "Onarılamadı"),
+            Completed = g.Count(x => x.DeliveryDate != null || x.Status == "Tamamlandı"),
             UnderWarranty = g.Count(x => x.IsUnderWarranty)
         }).SingleOrDefaultAsync();
 
-        var openItems = await q.Where(x => x.Status != "Tamamlandı" && x.Status != "İade Edildi" && x.Status != "Onarılamadı")
+        var openItems = await q.Where(x => x.DeliveryDate == null && x.Status != "Tamamlandı")
             .Select(x => new { x.ServiceArrivalDate, x.ServiceSentDate, x.CreatedAt, x.DeliveryDate, x.Status }).ToListAsync();
 
         ViewBag.Overdue20 = openItems.Count(x =>

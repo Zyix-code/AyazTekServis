@@ -143,7 +143,11 @@ public static class AuditChangeFormatter
         var currency = map.TryGetValue("ChargeCurrency", out var currencyElement) && currencyElement.HasValue ? Display("ChargeCurrency", currencyElement.Value) : "TRY";
         if (currency == "TRY") currency = "TL";
         var vat = map.TryGetValue("ChargeVatMode", out var vatElement) && vatElement.HasValue ? Display("ChargeVatMode", vatElement.Value) : "KDV Hariç";
-        var vatText = vat.Equals("KDV Hariç", StringComparison.OrdinalIgnoreCase) ? "+ KDV" : "(KDV Dahil)";
+        var vatText = vat.Equals("KDV Hariç", StringComparison.OrdinalIgnoreCase)
+            ? "+ KDV"
+            : vat.Equals("KDV Yok", StringComparison.OrdinalIgnoreCase)
+                ? "(KDV Yok)"
+                : "(KDV Dahil)";
         return $"{amount} {currency} {vatText}";
     }
 

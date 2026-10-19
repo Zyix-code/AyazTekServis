@@ -43,26 +43,15 @@ public static class MailTemplateService
             : $"<div style=\"margin-top:18px;padding:14px 16px;border-radius:12px;background:{accent}0f;border:1px solid {accent}2d;color:#334155;font-size:14px;line-height:1.55\">{H(actionText)}</div>";
 
         var detailRows = new StringBuilder();
-        if (string.Equals(record.Status, "Teslime Hazır", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(record.Status, "Tamamlandı", StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(record.ServiceResult))
         {
-            if (!string.IsNullOrWhiteSpace(record.ServiceResult))
-                detailRows.Append($"<tr><td style=\"color:#7b8798\">Yapılan İşlem</td><td>{H(record.ServiceResult)}</td></tr>");
-        }
-        else if (string.Equals(record.Status, "İade Edildi", StringComparison.OrdinalIgnoreCase))
-        {
-            if (!string.IsNullOrWhiteSpace(record.ServiceResult))
-                detailRows.Append($"<tr><td style="color:#7b8798">İade Açıklaması</td><td>{H(record.ServiceResult)}</td></tr>");
-        }
-        else if (string.Equals(record.Status, "Müşteri Onayı Bekliyor", StringComparison.OrdinalIgnoreCase))
-        {
-            if (!string.IsNullOrWhiteSpace(record.ServiceResult))
-                detailRows.Append($"<tr><td style="color:#7b8798">Onay Beklenen İşlem</td><td>{H(record.ServiceResult)}</td></tr>");
+            var resultLabel = record.Status == "Müşteri Onayı Bekliyor" ? "Onay Beklenen İşlem" : "Yapılan İşlem / Servis Sonucu";
+            detailRows.Append($"<tr><td style=\"color:#7b8798\">{H(resultLabel)}</td><td>{H(record.ServiceResult)}</td></tr>");
         }
 
         var content = $"""
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0 9px;font-size:14px">
-<tr><td style="color:#7b8798;width:145px">Takip No</td><td><strong>{H(record.TrackingNumber)}</strong></td></tr>
+<tr><td style="color:#7b8798;width:145px">AyazTek Fiş No</td><td><strong>{H(record.TrackingNumber)}</strong></td></tr>
 <tr><td style="color:#7b8798">Ürün</td><td><strong>{H(record.Brand)} {H(record.Model)}</strong></td></tr>
 <tr><td style="color:#7b8798">Cins</td><td>{H(record.ProductType)}</td></tr>
 <tr><td style="color:#7b8798">Seri No</td><td>{H(record.SerialNumber)}</td></tr>
@@ -79,22 +68,19 @@ public static class MailTemplateService
     {
         var content = $"""
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0 8px;font-size:14px">
-<tr><td style="color:#7b8798;width:145px">Takip No</td><td><strong>{H(record.TrackingNumber)}</strong></td></tr>
+<tr><td style="color:#7b8798;width:145px">AyazTek Fiş No</td><td><strong>{H(record.TrackingNumber)}</strong></td></tr>
 <tr><td style="color:#7b8798">Gönderen</td><td>{H(record.Sender)}</td></tr>
 <tr><td style="color:#7b8798">Ürün</td><td><strong>{H(record.Brand)} {H(record.Model)}</strong></td></tr>
 <tr><td style="color:#7b8798">Cins</td><td>{H(record.ProductType)}</td></tr>
 <tr><td style="color:#7b8798">Seri No</td><td>{H(record.SerialNumber)}</td></tr>
-<tr><td style="color:#7b8798">Gönderilen Servis</td><td>{H(record.SentToService)}</td></tr>
 <tr><td style="color:#7b8798">Garanti</td><td>{(record.IsUnderWarranty ? "Garantili" : "Garantisiz")}</td></tr>
 <tr><td style="color:#7b8798">Arıza / Şikayet</td><td>{H(record.FaultReason)}</td></tr>
 </table>
-<div style="margin-top:20px;padding:16px;border:1px solid #dfe6ed;border-radius:12px;background:#f8fafc;font-size:13px;line-height:1.65;color:#475569">
-<strong style="display:block;color:#172033;margin-bottom:8px">Servise Teslim ve Kabul Şartları</strong>
-• Servis formu geri alınmadan ürün teslim edilemez.<br>
-• Zamanında teslim alınmayan ürünlerden sorumluluk kabul edilmeyecektir.<br>
-• Arıza tespiti en az 2, en çok 7 iş günüdür. Servise giden ürün için azami servis süresi 20 iş günüdür.<br>
-• Müdahale sonucu oluşabilecek bilgi kayıpları veya işletim sistemi problemlerinden şirketimiz sorumlu değildir. Ürünü teslim etmeden önce yedeklerinizi alınız.<br>
-• Ürün üzerindeki yazılımların yasal sorumluluğu kullanıcıya aittir. Lisansı olmayan yazılımlar yüklenemez.
+<div style="margin-top:16px;padding:13px 15px;border:1px solid #dfe6ed;border-radius:10px;background:#f8fafc;font-size:12px;line-height:1.6;color:#475569">
+<strong style="display:block;color:#172033;margin-bottom:6px">Ürün Kabul Bilgilendirmesi</strong>
+• Bu mesaj ürününüzün servis kaydının oluşturulduğunu gösterir.<br>
+• Kesin arıza tespiti ve işlem bilgisi teknik kontrol sonrasında netleşebilir.<br>
+• Önemli verilerin yedeklenmesi önerilir; ücret ve işlem onayları gerektiğinde ayrıca bildirilir.
 </div>
 """;
         return Layout("Servis kaydınız oluşturuldu", "Ürününüz servis kayıt sistemimize alındı. Aşağıdaki bilgiler servis kabul formunuzun özetidir.", content, "Kayıt Açıldı", "#185c72", "Bu mesaj servis kabul bilgilendirmesidir. Lütfen takip numaranızı saklayınız.");
@@ -108,6 +94,11 @@ public static class MailTemplateService
 
     public static (string Title, string Intro, string Accent, string Action)? StatusMessage(ServiceRecord record)
     {
+        if (record.DeliveryDate.HasValue && (record.Status is "Onarılamadı" or "Müşteri Onaylamadı" or "İade Edildi"))
+        {
+            var result = record.Status switch { "Onarılamadı" => "Onarım yapılamadı", "Müşteri Onaylamadı" => "Onarım onaylanmadı", _ => "İade edildi" };
+            return ("Ürününüz teslim edildi", $"Ürün teslim işleminiz kaydedildi. Sonuç: {result}.", "#185c72", "Ürününüzün teslim kaydı tamamlandı. Servis sonucu yukarıda yer almaktadır.");
+        }
         return record.Status switch
         {
             "Kayıt Açıldı" => ("Servis kaydınız oluşturuldu", "Ürününüz servis kayıt sistemimize alındı.", "#185c72", "Takip numaranızı saklayınız. Servis sürecindeki önemli değişikliklerde tekrar bilgilendirileceksiniz."),
@@ -115,7 +106,9 @@ public static class MailTemplateService
                         "Parça Bekliyor" => ("Servis işlemi parça bekliyor", "Ürününüz için servis süreci devam ediyor.", "#d97706", "Onarım için gerekli parça beklenmektedir. Parça temin edildiğinde işlem devam edecektir."),
             "Müşteri Onayı Bekliyor" => ("Servis işlemi için onayınız bekleniyor", "Cihazınızda uygulanacak işlem için müşteri onayı gereken aşamaya gelindi.", "#d97706", "Yukarıdaki işlem bilgisini kontrol ederek teknik servisimizle iletişime geçip onayınızı iletebilirsiniz."),
             "Teslime Hazır" => ("Ürününüz teslime hazır", "Teknik servis işleminiz tamamlandı. Yapılan işlem bilgisi aşağıda yer almaktadır.", "#15803d", "Ürününüz teslim alınmaya hazırdır. Teslim öncesi teknik servisimizle iletişime geçebilirsiniz."),
-            "İade Edildi" => ("Ürününüz iade sürecine alındı", "Servis kaydınız iade olarak sonuçlandırıldı. Varsa iade açıklaması aşağıda yer almaktadır.", "#b45309", "Ürününüzün teslim/iade işlemi için teknik servisimizle iletişime geçebilirsiniz."),
+            "İade Bekliyor" => ("Ürününüz iade için hazır", "Ürününüzün iade işlemi planlanmaktadır.", "#b45309", "Teslim için servisimizle iletişime geçebilirsiniz."),
+            "Müşteri Onaylamadı" => ("Servis işlemi onaylanmadı", "Onarım onayı verilmediği için ürününüz işlem yapılmadan teslim edilecektir.", "#b45309", "Teslim için servisimizle iletişime geçebilirsiniz."),
+            "İade Edildi" => ("Ürününüz iade edildi", "Cihazınızın iade ve teslim işlemi kaydedildi. Varsa iade açıklaması aşağıda yer almaktadır.", "#b45309", "Ürününüzün teslim/iade işlemi için teknik servisimizle iletişime geçebilirsiniz."),
             "Tamamlandı" => ("Ürününüz teslim edildi", "Servis ve teslim işleminiz tamamlandı.", "#15803d", "Ürününüzün teslim işlemi sistemimizde tamamlandı. Bizi tercih ettiğiniz için teşekkür ederiz."),
             "Onarılamadı" => ("Servis işlemi sonuçlandı", "Ürününüz için servis işlemi tamamlandı ancak onarım gerçekleştirilemedi.", "#b91c1c", "Detaylı bilgi ve teslim süreci için teknik servis ile iletişime geçebilirsiniz."),
             _ => null

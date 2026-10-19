@@ -9,6 +9,17 @@ public class NotificationItem
     public string Message { get; set; } = string.Empty;
     public string Url { get; set; } = string.Empty;
     public DateTime SortDate { get; set; } = DateTime.Now;
+    public bool IsServiceRecord { get; set; }
+    public string Device { get; set; } = string.Empty;
+    public string SerialNumber { get; set; } = string.Empty;
+    public string Sender { get; set; } = string.Empty;
+    public string SentToService { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string TrackingNumber { get; set; } = string.Empty;
+    public DateTime RegisteredAt { get; set; }
+    public DateTime? SentAt { get; set; }
+    public DateTime? LastUpdatedAt { get; set; }
+    public int WorkingDays { get; set; }
 }
 
 public class NotificationCenterViewModel

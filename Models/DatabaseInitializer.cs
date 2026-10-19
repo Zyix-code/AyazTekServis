@@ -62,6 +62,7 @@ public static class DatabaseInitializer
                     "ServiceSentDate" TEXT NULL,
                     "SentToService" TEXT NOT NULL DEFAULT '',
                     "TrackingNumber" TEXT NOT NULL DEFAULT '',
+                    "ServiceReceiptNumber" TEXT NOT NULL DEFAULT '',
                     "FaultReason" TEXT NOT NULL DEFAULT '',
                     "Accessories" TEXT NOT NULL DEFAULT '',
                     "Notes" TEXT NOT NULL DEFAULT '',
@@ -102,6 +103,7 @@ public static class DatabaseInitializer
                 ["ServiceSentDate"] = "TEXT NULL",
                 ["SentToService"] = "TEXT NOT NULL DEFAULT ''",
                 ["TrackingNumber"] = "TEXT NOT NULL DEFAULT ''",
+                ["ServiceReceiptNumber"] = "TEXT NOT NULL DEFAULT ''",
                 ["FaultReason"] = "TEXT NOT NULL DEFAULT ''",
                 ["Accessories"] = "TEXT NOT NULL DEFAULT ''",
                 ["Notes"] = "TEXT NOT NULL DEFAULT ''",
@@ -143,7 +145,7 @@ public static class DatabaseInitializer
             await ExecuteAsync(connection, "UPDATE \"ServiceRecords\" SET \"CreatedByUsername\" = 'Sistem (eski kayıt)' WHERE COALESCE(\"CreatedByUsername\", '') = '';");
             await ExecuteAsync(connection, "UPDATE \"ServiceRecords\" SET \"DeliveryMethod\" = 'Müşteriye Teslim' WHERE \"DeliveryMethod\" = 'Şirketten Teslim';");
             await ExecuteAsync(connection, "UPDATE \"ServiceRecords\" SET \"Status\" = 'Serviste' WHERE \"Status\" = 'Servise Gönderildi';");
-            await ExecuteAsync(connection, "UPDATE \"ServiceRecords\" SET \"ChargeVatMode\" = 'KDV Hariç' WHERE COALESCE(\"ChargeVatMode\", '') NOT IN ('KDV Dahil', 'KDV Hariç');");
+            await ExecuteAsync(connection, "UPDATE \"ServiceRecords\" SET \"ChargeVatMode\" = 'KDV Hariç' WHERE COALESCE(\"ChargeVatMode\", '') NOT IN ('KDV Dahil', 'KDV Hariç', 'KDV Yok');");
             await ExecuteAsync(connection, "UPDATE \"ServiceRecords\" SET \"ServiceSentDate\" = \"ServiceArrivalDate\" WHERE \"ServiceSentDate\" IS NULL AND \"Status\" NOT IN ('Kayıt Açıldı', 'Beklemede') AND \"ServiceArrivalDate\" IS NOT NULL;");
 
             await ExecuteAsync(connection, """

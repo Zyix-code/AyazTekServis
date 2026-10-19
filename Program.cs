@@ -3,18 +3,51 @@ using AyazTekServis.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
+
+static string ResolveApplicationRoot(string contentRoot)
+{
+    static bool IsApplicationRoot(string path) =>
+        Directory.Exists(Path.Combine(path, "wwwroot")) &&
+        File.Exists(Path.Combine(path, "appsettings.json"));
+
+    if (IsApplicationRoot(contentRoot))
+        return Path.GetFullPath(contentRoot);
+
+    var current = new DirectoryInfo(AppContext.BaseDirectory);
+    while (current != null)
+    {
+        if (IsApplicationRoot(current.FullName))
+            return current.FullName;
+
+        current = current.Parent;
+    }
+
+    return Path.GetFullPath(contentRoot);
+}
+
+var applicationRoot = ResolveApplicationRoot(builder.Environment.ContentRootPath);
+var databasePath = Path.Combine(applicationRoot, "AyazTekServis.db");
+builder.Configuration["ConnectionStrings:DefaultConnection"] = $"Data Source={databasePath}";
 
 var configuredUrl = builder.Configuration["AppUrl"];
 if (!string.IsNullOrWhiteSpace(configuredUrl))
 {
     builder.WebHost.UseUrls(configuredUrl);
 }
-else if (builder.Environment.IsDevelopment())
+else
 {
     builder.WebHost.UseUrls("http://127.0.0.1:5140");
 }
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 builder.Services.AddControllersWithViews();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddDataProtection();
@@ -80,6 +113,17 @@ builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+
+var configuredPublicBaseUrl = builder.Configuration["PublicBaseUrl"]?.Trim().TrimEnd('/');
+Uri? publicBaseUri = null;
+if (!string.IsNullOrWhiteSpace(configuredPublicBaseUrl) &&
+    Uri.TryCreate(configuredPublicBaseUrl, UriKind.Absolute, out var parsedPublicBaseUri) &&
+    parsedPublicBaseUri.Scheme == Uri.UriSchemeHttps)
+{
+    publicBaseUri = parsedPublicBaseUri;
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
@@ -114,6 +158,8 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "AyazTekServis" })).AllowAnonymous();
+
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Account}/{action=Login}/{id?}");
@@ -123,6 +169,29 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var passwordService = scope.ServiceProvider.GetRequiredService<PasswordService>();
     await DatabaseInitializer.InitializeAsync(db, passwordService);
+
+    if (publicBaseUri != null)
+    {
+        var publicBaseSetting = await db.SystemSettings.FindAsync("PublicBaseUrl");
+        if (publicBaseSetting == null)
+        {
+            db.SystemSettings.Add(new SystemSetting
+            {
+                Key = "PublicBaseUrl",
+                Value = configuredPublicBaseUrl!,
+                UpdatedAt = DateTime.Now,
+                UpdatedBy = "Sistem"
+            });
+            await db.SaveChangesAsync();
+        }
+        else if (!string.Equals(publicBaseSetting.Value?.TrimEnd('/'), configuredPublicBaseUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            publicBaseSetting.Value = configuredPublicBaseUrl!;
+            publicBaseSetting.UpdatedAt = DateTime.Now;
+            publicBaseSetting.UpdatedBy = "Sistem";
+            await db.SaveChangesAsync();
+        }
+    }
 }
 
 app.Run();

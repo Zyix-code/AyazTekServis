@@ -545,7 +545,7 @@ public class AdminController : Controller
         var publicBaseUrl = await _db.SystemSettings.AsNoTracking()
             .Where(x => x.Key == "PublicBaseUrl")
             .Select(x => x.Value)
-            .FirstOrDefaultAsync();
+            .SingleOrDefaultAsync();
         publicBaseUrl = string.IsNullOrWhiteSpace(publicBaseUrl) ? _configuration["PublicBaseUrl"] : publicBaseUrl;
         publicBaseUrl = publicBaseUrl?.Trim().TrimEnd('/');
 

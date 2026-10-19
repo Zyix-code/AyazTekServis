@@ -11,31 +11,82 @@
     var criticalTotal = (int)(ViewBag.CriticalTotal ?? 0);
 }
 <div class="page-head compact-page-head">
-    <div><div class="eyebrow">Takip & Uyarılar</div><h1>Bildirim Merkezi</h1><p>Yalnızca aksiyon gerektiren servis süreleri ve önemli durumlar gösterilir.</p></div>
+    <div>
+        <div class="eyebrow">Takip &amp; Uyarılar</div>
+        <h1>Bildirim Merkezi</h1>
+        <p>Servis takibi, süre uyarıları ve işlem bekleyen kayıtlar. Süre hesabında hafta sonu ve Türkiye resmî tatilleri hariçtir.</p>
+    </div>
 </div>
 <div class="notification-summary-grid mb-3">
-    <a asp-action="Index" class="notification-summary-card @(string.IsNullOrWhiteSpace(currentType)?"active":"")"><span class="summary-dot dot-all"></span><div><strong>@allTotal</strong><small>Tüm Bildirimler</small></div></a>
-    <a asp-action="Index" asp-route-type="preservice" class="notification-summary-card @(currentType=="preservice"?"active":"")"><span class="summary-dot dot-info"></span><div><strong>@preServiceTotal</strong><small>Servis Öncesi</small></div></a>
-    <a asp-action="Index" asp-route-type="warning" class="notification-summary-card @(currentType=="warning"?"active":"")"><span class="summary-dot dot-warning"></span><div><strong>@warningTotal</strong><small>18-19 / Onay</small></div></a>
-    <a asp-action="Index" asp-route-type="danger" class="notification-summary-card @(currentType=="danger"?"active":"")"><span class="summary-dot dot-danger"></span><div><strong>@criticalTotal</strong><small>20+ / Gecikmiş</small></div></a>
+    <a asp-action="Index" class="notification-summary-card @(string.IsNullOrWhiteSpace(currentType) ? "active" : "")">
+        <span class="summary-dot dot-all"></span><div><strong>@allTotal</strong><small>Tüm Bildirimler</small></div>
+    </a>
+    <a asp-action="Index" asp-route-type="preservice" class="notification-summary-card @(currentType == "preservice" ? "active" : "")">
+        <span class="summary-dot dot-info"></span><div><strong>@preServiceTotal</strong><small>Servise Gönderilmeyi Bekleyen</small></div>
+    </a>
+    <a asp-action="Index" asp-route-type="warning" class="notification-summary-card @(currentType == "warning" ? "active" : "")">
+        <span class="summary-dot dot-warning"></span><div><strong>@warningTotal</strong><small>Süresi Yaklaşan</small></div>
+    </a>
+    <a asp-action="Index" asp-route-type="danger" class="notification-summary-card @(currentType == "danger" ? "active" : "")">
+        <span class="summary-dot dot-danger"></span><div><strong>@criticalTotal</strong><small>Süresi Aşılan</small></div>
+    </a>
 </div>
 <div class="app-card overflow-hidden">
-    <div class="notification-list">
-        @if(!Model.Items.Any())
+    <div class="notification-list notification-list-rich">
+        @if (!Model.Items.Any())
         {
-            <div class="empty-state py-5"><i class="bi bi-check-circle"></i><strong>Takip gerektiren kayıt yok</strong><small>Seçilen kategoride aktif uyarı bulunmuyor.</small></div>
+            <div class="empty-state py-5"><i class="bi bi-check-circle"></i><strong>Bu kategoride bildirim yok</strong><small>Aktif uyarı bulunmuyor.</small></div>
         }
-        @foreach(var n in Model.Items)
+        @foreach (var n in Model.Items)
         {
-            <a href="@n.Url" class="notification-row notification-@n.Type">
+            <a href="@n.Url" class="notification-row notification-rich-card notification-@n.Type">
                 <span class="notification-icon"><i class="bi @n.Icon"></i></span>
-                <span class="flex-grow-1 min-w-0"><strong>@n.Title</strong><small>@n.Message</small></span>
-                <i class="bi bi-chevron-right"></i>
+                <span class="notification-rich-content">
+                    <span class="notification-rich-heading">
+                        <strong>@n.Title</strong>
+                        @if (n.IsServiceRecord)
+                        {
+                            <span class="notification-day-pill">@n.WorkingDays çalışma günü</span>
+                        }
+                    </span>
+                    @if (n.IsServiceRecord)
+                    {
+                        <span class="notification-device">@n.Device</span>
+                        <span class="notification-tracking">AyazTek Fiş No: @(string.IsNullOrWhiteSpace(n.TrackingNumber) ? "—" : n.TrackingNumber)</span>
+                        <span class="notification-compact-details">
+                            <span><span class="notification-field-label">SN</span><b>@(string.IsNullOrWhiteSpace(n.SerialNumber) ? "Belirtilmemiş" : n.SerialNumber)</b></span>
+                            <span><span class="notification-field-label">Gönderen</span><b>@(string.IsNullOrWhiteSpace(n.Sender) ? "Belirtilmemiş" : n.Sender)</b></span>
+                            <span><span class="notification-field-label">Servis</span><b>@(string.IsNullOrWhiteSpace(n.SentToService) ? "Belirtilmemiş" : n.SentToService)</b></span>
+                            <span><span class="notification-field-label">Durum</span><b>@n.Status</b></span>
+                        </span>
+                        <span class="notification-date-line">
+                            <span title="Kayıt tarihi"><i class="bi bi-calendar-plus"></i> @n.RegisteredAt.ToString("dd.MM.yyyy")</span>
+                            <span title="Servise gönderilme tarihi"><i class="bi bi-truck"></i> @(n.SentAt?.ToString("dd.MM.yyyy") ?? "Gönderilmedi")</span>
+                            <span title="Son işlem tarihi"><i class="bi bi-pencil-square"></i> @((n.LastUpdatedAt ?? n.RegisteredAt).ToString("dd.MM.yyyy HH:mm"))</span>
+                        </span>
+                        <span class="notification-rich-footer"><span>@n.Message</span><span class="notification-view-link">Detay <i class="bi bi-arrow-right"></i></span></span>
+                    }
+                    else
+                    {
+                        <span class="notification-system-message">@n.Message</span>
+                        <span class="notification-view-link">İncele <i class="bi bi-arrow-right"></i></span>
+                    }
+                </span>
             </a>
         }
     </div>
-    @if(totalPages > 1)
+    @if (totalPages > 1)
     {
-        <div class="pagination-bar"><small class="text-muted">Sayfa @currentPage / @totalPages · @total kayıt</small><nav><ul class="pagination pagination-sm mb-0"><li class="page-item @(currentPage<=1?"disabled":"")"><a class="page-link" asp-action="Index" asp-route-type="@currentType" asp-route-page="@(currentPage-1)">Önceki</a></li><li class="page-item @(currentPage>=totalPages?"disabled":"")"><a class="page-link" asp-action="Index" asp-route-type="@currentType" asp-route-page="@(currentPage+1)">Sonraki</a></li></ul></nav></div>
+        <div class="pagination-bar">
+            <small class="text-muted">Sayfa @currentPage / @totalPages · @total kayıt</small>
+            <nav><ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(currentPage <= 1 ? "disabled" : "")"><a class="page-link" asp-action="Index" asp-route-type="@currentType" asp-route-page="@(currentPage - 1)">Önceki</a></li>
+                <li class="page-item @(currentPage >= totalPages ? "disabled" : "")"><a class="page-link" asp-action="Index" asp-route-type="@currentType" asp-route-page="@(currentPage + 1)">Sonraki</a></li>
+            </ul></nav>
+        </div>
     }
+</div>
+<div class="notification-explainer mt-3">
+    <i class="bi bi-info-circle"></i>
+    <span>"Son işlem" kayıttaki en son değişiklik tarihidir; cihazın servise gönderildiği tarih değildir. Gönderim tarihi ayrı gösterilir. 7 ve 20 çalışma günü eşikleri uygulama içi takip hedefleridir.</span>
 </div>

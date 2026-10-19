@@ -1,6 +1,6 @@
 @model IReadOnlyList<AyazTekServis.Models.AuditLog>
 @{
-    ViewData["Title"] = "İşlem Logları";
+    ViewData["Title"] = "İşlem Kayıtları";
     var currentPage = (int)(ViewBag.Page ?? 1);
     var totalPages = (int)(ViewBag.TotalPages ?? 1);
     var total = (int)(ViewBag.Total ?? Model.Count);
@@ -16,7 +16,7 @@
     };
 }
 <div class="page-head">
-    <div><div class="eyebrow">Audit</div><h1>İşlem Logları</h1><p>Giriş, çıkış, servis, kullanıcı ve yönetim hareketleri burada tutulur. Varsayılan görünüm son 20 kayıttır.</p></div>
+    <div><div class="eyebrow">Kayıt Geçmişi</div><h1>İşlem Kayıtları</h1><p>Kullanıcı ve sistem işlemlerini tarih, işlem ve kayıt bazında inceleyin.</p></div>
     <div class="d-flex flex-wrap align-items-center gap-2">
         <span class="badge text-bg-dark px-3 py-2">@total log</span>
         <a asp-action="ExportLogs" class="btn btn-outline-success"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
@@ -40,15 +40,15 @@
         <div><label class="form-label">İşlem</label><input name="actionFilter" value="@ViewBag.ActionFilter" class="form-control" placeholder="Örn. Giriş"/></div>
         <div><label class="form-label">Tür</label><select name="entityType" class="form-select">
             <option value="">Tüm türler</option>
-            <option value="ServiceRecord" selected="@(ViewBag.EntityType=="ServiceRecord")">Servis Kaydı</option>
-            <option value="User" selected="@(ViewBag.EntityType=="User")">Kullanıcı</option>
-            <option value="UserSession" selected="@(ViewBag.EntityType=="UserSession")">Oturum</option>
-            <option value="System" selected="@(ViewBag.EntityType=="System")">Sistem</option>
-            <option value="Email" selected="@(ViewBag.EntityType=="Email")">E-posta</option>
+            <option value="ServiceRecord" selected="@(ViewBag.EntityType=="ServiceRecord" ? "selected" : null)">Servis Kaydı</option>
+            <option value="User" selected="@(ViewBag.EntityType=="User" ? "selected" : null)">Kullanıcı</option>
+            <option value="UserSession" selected="@(ViewBag.EntityType=="UserSession" ? "selected" : null)">Oturum</option>
+            <option value="System" selected="@(ViewBag.EntityType=="System" ? "selected" : null)">Sistem</option>
+            <option value="Email" selected="@(ViewBag.EntityType=="Email" ? "selected" : null)">E-posta</option>
         </select></div>
         <div><label class="form-label">Başlangıç</label><input type="date" name="dateFrom" value="@ViewBag.DateFrom" class="form-control"/></div>
         <div><label class="form-label">Bitiş</label><input type="date" name="dateTo" value="@ViewBag.DateTo" class="form-control"/></div>
-        <div><label class="form-label">Sayfa</label><select name="pageSize" class="form-select"><option value="20" selected="@(pageSize==20)">20</option><option value="50" selected="@(pageSize==50)">50</option><option value="100" selected="@(pageSize==100)">100</option></select></div>
+        <div><label class="form-label">Sayfa</label><select name="pageSize" class="form-select"><option value="20" selected="@(pageSize==20 ? "selected" : null)">20</option><option value="50" selected="@(pageSize==50 ? "selected" : null)">50</option><option value="100" selected="@(pageSize==100 ? "selected" : null)">100</option></select></div>
         <div class="log-filter-actions"><button class="btn btn-dark"><i class="bi bi-funnel me-1"></i>Filtrele</button></div>
     </form>
 </div>

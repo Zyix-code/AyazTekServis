@@ -4,16 +4,17 @@ namespace AyazTekServis.Services;
 
 public record DatabaseBackupResult(string FileName, string FullPath, byte[] Bytes);
 
-public class DatabaseBackupService(IConfiguration configuration)
+public class DatabaseBackupService(IConfiguration configuration, IWebHostEnvironment environment)
 {
     private readonly IConfiguration _configuration = configuration;
+    private readonly IWebHostEnvironment _environment = environment;
 
     public async Task<DatabaseBackupResult> CreateAsync(CancellationToken cancellationToken = default)
     {
         var cs = _configuration.GetConnectionString("DefaultConnection") ?? "Data Source=AyazTekServis.db";
         var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
         var fileName = $"AyazTekServis-backup-{stamp}.db";
-        var backupDir = Path.Combine(Directory.GetCurrentDirectory(), "Backups");
+        var backupDir = Path.Combine(_environment.ContentRootPath, "Backups");
         Directory.CreateDirectory(backupDir);
         var backupPath = Path.Combine(backupDir, fileName);
 

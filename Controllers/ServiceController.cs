@@ -20,14 +20,13 @@ public class ServiceController : Controller
 
     private static readonly string[] AllowedStatuses = [
         "Kayıt Açıldı", "Serviste", "Onarımda", "Parça Bekliyor", "Müşteri Onayı Bekliyor",
-        "Beklemede", "Teslime Hazır", "Tamamlandı", "İade Edildi", "Onarılamadı"
+        "Beklemede", "Teslime Hazır", "İade Bekliyor", "Müşteri Onaylamadı", "Tamamlandı", "İade Edildi", "Onarılamadı"
     ];
-    private static readonly string[] AllowedControlStatuses = [
-        "Kayıt Açıldı", "Serviste", "Onarımda", "Parça Bekliyor", "Müşteri Onayı Bekliyor",
-        "Beklemede", "Teslime Hazır", "İade Edildi", "Onarılamadı"
-    ];
+    private static readonly string[] AllowedControlStatuses = AllowedStatuses;
+    private static readonly string[] DeliveryEligibleStatuses = ["Teslime Hazır", "İade Bekliyor", "Onarılamadı", "Müşteri Onaylamadı", "İade Edildi"];
+    private static bool CanDeliver(ServiceRecord record) => !record.DeliveryDate.HasValue && DeliveryEligibleStatuses.Contains(record.Status);
     private static readonly string[] AllowedCurrencies = ["TRY", "USD", "EUR"];
-    private static readonly string[] AllowedVatModes = ["KDV Dahil", "KDV Hariç"];
+    private static readonly string[] AllowedVatModes = ["KDV Dahil", "KDV Hariç", "KDV Yok"];
     private static readonly string[] AllowedDeliveryMethods = ["Müşteriye Teslim", "Kargo"];
 
     public ServiceController(ApplicationDbContext context, ServiceNumberGenerator numbers, AuditService audit, ILogger<ServiceController> logger, BusinessDayService businessDays, EmailService email)
@@ -54,7 +53,7 @@ public class ServiceController : Controller
             var upperSearch = UpperTr(rawSearch);
             var likeSearch = $"%{rawSearch}%";
             query = query.Where(x => x.Brand.Contains(upperSearch) || x.Model.Contains(upperSearch) || x.SerialNumber.Contains(upperSearch) ||
-                                     x.Sender!.Contains(upperSearch) || x.SentToService.Contains(upperSearch) || x.TrackingNumber.Contains(rawSearch) ||
+                                     x.Sender!.Contains(upperSearch) || x.SentToService.Contains(upperSearch) || x.TrackingNumber.Contains(rawSearch) || (x.ServiceReceiptNumber ?? string.Empty).Contains(upperSearch) ||
                                      EF.Functions.Like(x.CustomerEmail ?? string.Empty, likeSearch) || EF.Functions.Like(x.CustomerPhone ?? string.Empty, likeSearch));
             search = rawSearch;
         }
@@ -65,15 +64,53 @@ public class ServiceController : Controller
         if (dateFrom.HasValue) query = query.Where(x => x.CreatedAt >= dateFrom.Value.Date);
         if (dateTo.HasValue) query = query.Where(x => x.CreatedAt < dateTo.Value.Date.AddDays(1));
 
+        var statisticsQuery = _context.ServiceRecords.AsNoTracking().Where(x => !x.IsDeleted);
+        var statistics = await statisticsQuery
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Total = g.Count(),
+                Completed = g.Count(x => x.DeliveryDate != null || x.Status == "Tamamlandı"),
+                InService = g.Count(x => x.Status == "Serviste" || x.Status == "Onarımda"),
+                WaitingPart = g.Count(x => x.Status == "Parça Bekliyor"),
+                Open = g.Count(x => x.Status == "Kayıt Açıldı"),
+                Ready = g.Count(x => x.Status == "Teslime Hazır")
+            })
+            .SingleOrDefaultAsync();
+
         var total = await query.CountAsync();
         var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
         page = Math.Min(page, totalPages);
-        var records = await query.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
-            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
 
+        var records = await query
+            .OrderBy(x => x.IsDeleted ? 2 :
+                (x.DeliveryDate != null || x.Status == "Tamamlandı" ? 1 : 0))
+            .ThenBy(x =>
+                x.Status == "Parça Bekliyor" ? 0 :
+                x.Status == "Serviste" ? 1 :
+                x.Status == "Onarımda" ? 2 :
+                x.Status == "Müşteri Onayı Bekliyor" ? 3 :
+                x.Status == "Teslime Hazır" || x.Status == "İade Bekliyor" || x.Status == "Onarılamadı" || x.Status == "Müşteri Onaylamadı" ? 4 :
+                x.Status == "Beklemede" ? 5 :
+                x.Status == "Kayıt Açıldı" ? 6 : 7)
+            .ThenByDescending(x => x.UpdatedAt ?? x.CreatedAt)
+            .ThenByDescending(x => x.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var totalAll = statistics?.Total ?? 0;
+        var completedCount = statistics?.Completed ?? 0;
         ViewBag.Search = search; ViewBag.Status = status; ViewBag.Warranty = warranty; ViewBag.Currency = currency;
         ViewBag.DateFrom = dateFrom?.ToString("yyyy-MM-dd"); ViewBag.DateTo = dateTo?.ToString("yyyy-MM-dd"); ViewBag.ShowDeleted = showDeleted;
         ViewBag.Statuses = AllowedStatuses; ViewBag.Page = page; ViewBag.PageSize = pageSize; ViewBag.Total = total; ViewBag.TotalPages = totalPages;
+        ViewBag.TotalAll = totalAll;
+        ViewBag.ActiveCount = Math.Max(0, totalAll - completedCount);
+        ViewBag.CompletedCount = completedCount;
+        ViewBag.InServiceCount = statistics?.InService ?? 0;
+        ViewBag.WaitingPartCount = statistics?.WaitingPart ?? 0;
+        ViewBag.OpenCount = statistics?.Open ?? 0;
+        ViewBag.ReadyCount = statistics?.Ready ?? 0;
         return View(records);
     }
 
@@ -178,7 +215,7 @@ public class ServiceController : Controller
 
         var rows = data.Select(x => (IReadOnlyList<object?>)new object?[]
         {
-            x.TrackingNumber, x.CreatedAt, x.ServiceSentDate, x.Sender, x.CustomerEmail, x.CustomerPhone, x.Brand, x.Model, x.ProductType,
+            x.TrackingNumber, string.IsNullOrWhiteSpace(x.ServiceReceiptNumber) ? "Fiş numarası yoktur" : x.ServiceReceiptNumber, x.CreatedAt, x.ServiceSentDate, x.Sender, x.CustomerEmail, x.CustomerPhone, x.Brand, x.Model, x.ProductType,
             x.SerialNumber, x.SentToService, x.FaultReason, x.Status, x.IsUnderWarranty,
             x.ServiceResult, x.HasCharge, x.ChargeAmount, x.ChargeCurrency, x.ChargeVatMode, x.DeliveryMethod,
             x.DeliveryDate, x.CreatedByUsername, x.CreatedAt, x.UpdatedByUsername, x.UpdatedAt
@@ -186,7 +223,7 @@ public class ServiceController : Controller
 
         var bytes = XlsxExportService.Create(
             "Servis Kayıtları",
-            ["Takip No","Kayıt Tarihi","Servise Gidiş Tarihi","Gönderen","Müşteri E-postası","Müşteri Telefonu","Marka","Model","Cins","Seri No","Gönderilen Servis",
+            ["Sistem Takip No","Servis Fiş / Takip No","Kayıt Tarihi","Servise Gidiş Tarihi","Gönderen","Müşteri E-postası","Müşteri Telefonu","Marka","Model","Cins","Seri No","Gönderilen Servis",
              "Arıza Nedeni","Durum","Garantili","Yapılan İşlem","Ücret Var","Tutar","Para Birimi","KDV Durumu",
              "Teslim Şekli","Teslim Tarihi","Kaydı Açan","Oluşturma Zamanı","Güncelleyen","Güncelleme Tarihi"],
             rows);
@@ -205,13 +242,13 @@ public class ServiceController : Controller
         if (x == null) return NotFound();
         var rows = new List<IReadOnlyList<object?>>
         {
-            new object?[] { x.TrackingNumber, x.CreatedAt, x.ServiceSentDate, x.Sender, x.CustomerEmail, x.CustomerPhone, x.Brand, x.Model, x.ProductType,
+            new object?[] { x.TrackingNumber, string.IsNullOrWhiteSpace(x.ServiceReceiptNumber) ? "Fiş numarası yoktur" : x.ServiceReceiptNumber, x.CreatedAt, x.ServiceSentDate, x.Sender, x.CustomerEmail, x.CustomerPhone, x.Brand, x.Model, x.ProductType,
                 x.SerialNumber, x.SentToService, x.FaultReason, x.Status, x.IsUnderWarranty ? "Garantili" : "Garantisiz",
                 x.ServiceResult, x.HasCharge ? "Evet" : "Hayır", x.ChargeAmount, x.ChargeCurrency, x.ChargeVatMode, x.DeliveryMethod,
                 x.DeliveryDate, x.CreatedByUsername, x.CreatedAt, x.UpdatedByUsername, x.UpdatedAt }
         };
         var bytes = XlsxExportService.Create("Servis Kaydı",
-            ["Takip No","Kayıt Tarihi","Servise Gidiş Tarihi","Gönderen","Müşteri E-postası","Müşteri Telefonu","Marka","Model","Cins","Seri No","Gönderilen Servis",
+            ["Sistem Takip No","Servis Fiş / Takip No","Kayıt Tarihi","Servise Gidiş Tarihi","Gönderen","Müşteri E-postası","Müşteri Telefonu","Marka","Model","Cins","Seri No","Gönderilen Servis",
              "Arıza Nedeni","Durum","Garanti","Yapılan İşlem","Ücret Var","Tutar","Para Birimi","KDV Durumu",
              "Teslim Şekli","Teslim Tarihi","Kaydı Açan","Oluşturma Zamanı","Güncelleyen","Güncelleme Tarihi"], rows);
         await _audit.LogAsync("Excel Dışa Aktarma", "ServiceRecord", id, $"{x.TrackingNumber} numaralı kayıt Excel olarak dışa aktarıldı.");
@@ -279,6 +316,7 @@ public class ServiceController : Controller
         record.ProductType = UpperTr(form.ProductType);
         record.SerialNumber = UpperTr(form.SerialNumber);
         record.SentToService = UpperTr(form.SentToService);
+        record.ServiceReceiptNumber = UpperTr(form.ServiceReceiptNumber);
         record.FaultReason = UpperTr(form.FaultReason);
         record.Accessories = UpperTr(form.Accessories);
         record.Notes = UpperTr(form.Notes);
@@ -309,13 +347,8 @@ public class ServiceController : Controller
     [HttpGet]
     public async Task<IActionResult> Control(int id)
     {
-        var record = await _context.ServiceRecords.Include(x => x.Parts).AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        var record = await _context.ServiceRecords.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (record == null) return NotFound();
-        if (record.Status == "Tamamlandı" && record.DeliveryDate.HasValue)
-        {
-            TempData["WarningMessage"] = "Teslimi tamamlanmış kayıtların teknik kontrolü yeniden açılamaz. Ürün kimlik bilgilerini Kayıt Bilgileri ekranından düzenleyebilirsiniz.";
-            return RedirectToAction(nameof(Details), new { id });
-        }
         ViewBag.Statuses = AllowedControlStatuses;
         return View(record);
     }
@@ -323,8 +356,8 @@ public class ServiceController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Control(int id, string status, decimal? chargeAmount, string chargeCurrency, string chargeVatMode, bool isUnderWarranty, string? serviceResult, string? notes)
     {
-        if (!AllowedCurrencies.Contains(chargeCurrency) || !AllowedVatModes.Contains(chargeVatMode) || !AllowedControlStatuses.Contains(status)) return BadRequest();
-        var resultRequired = status is "Teslime Hazır" or "Tamamlandı" or "İade Edildi" or "Onarılamadı";
+        if (!AllowedCurrencies.Contains(chargeCurrency) || !AllowedVatModes.Contains(chargeVatMode)) return BadRequest();
+        var resultRequired = status is "Teslime Hazır" or "Tamamlandı" or "İade Edildi" or "Onarılamadı" or "İade Bekliyor" or "Müşteri Onaylamadı";
         if (resultRequired && string.IsNullOrWhiteSpace(serviceResult))
         {
             TempData["ErrorMessage"] = "Bu durum için yapılan işlem/sonuç alanını doldurmalısınız.";
@@ -343,11 +376,8 @@ public class ServiceController : Controller
 
         var record = await _context.ServiceRecords.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (record == null) return NotFound();
-        if (record.Status == "Tamamlandı" && record.DeliveryDate.HasValue)
-        {
-            TempData["WarningMessage"] = "Teslimi tamamlanmış kayıt yeniden kontrol edilemez.";
-            return RedirectToAction(nameof(Details), new { id });
-        }
+        var delivered = record.DeliveryDate.HasValue;
+        if (!AllowedControlStatuses.Contains(status)) return BadRequest();
         var oldStatus = record.Status;
         var old = Snapshot(record);
         if (_businessDays.IsPreService(oldStatus) && !_businessDays.IsPreService(status) && !record.ServiceSentDate.HasValue)
@@ -361,6 +391,11 @@ public class ServiceController : Controller
         record.ChargeCurrency = chargeCurrency;
         record.ChargeVatMode = record.HasCharge ? chargeVatMode : "KDV Hariç";
         record.Status = status;
+        if (delivered && status != oldStatus)
+        {
+            record.DeliveryDate = null;
+            record.IsRepaired = false;
+        }
         record.UpdatedAt = DateTime.Now;
         record.UpdatedByUserId = userId;
         record.UpdatedByUsername = username;
@@ -369,7 +404,7 @@ public class ServiceController : Controller
             $"{record.TrackingNumber} numaralı ürünün teknik kontrol bilgileri kaydedildi. Değiştirilen alanlar aşağıda gösterilmektedir.", old, Snapshot(record));
 
         if (!string.Equals(oldStatus, record.Status, StringComparison.Ordinal) &&
-            !string.IsNullOrWhiteSpace(record.CustomerEmail) &&
+            !delivered && !string.IsNullOrWhiteSpace(record.CustomerEmail) &&
             MailTemplateService.StatusMessage(record) != null)
         {
             var mailResult = await SendCustomerStatusEmailAsync(record);
@@ -391,13 +426,13 @@ public class ServiceController : Controller
         page = Math.Max(1, page);
         pageSize = pageSize is 20 or 50 or 100 ? pageSize : 20;
         var q = _context.ServiceRecords.AsNoTracking()
-            .Where(x => !x.IsDeleted && x.Status == "Teslime Hazır");
+            .Where(x => !x.IsDeleted && x.DeliveryDate == null && (x.Status == "Teslime Hazır" || x.Status == "İade Bekliyor" || x.Status == "Onarılamadı" || x.Status == "Müşteri Onaylamadı" || x.Status == "İade Edildi"));
         if (!string.IsNullOrWhiteSpace(search))
         {
             var rawSearch = search.Trim();
             var upperSearch = UpperTr(rawSearch);
             var likeSearch = $"%{rawSearch}%";
-            q = q.Where(x => x.TrackingNumber.Contains(rawSearch) || x.Brand.Contains(upperSearch) || x.Model.Contains(upperSearch) || x.SerialNumber.Contains(upperSearch) ||
+            q = q.Where(x => x.TrackingNumber.Contains(rawSearch) || (x.ServiceReceiptNumber ?? string.Empty).Contains(upperSearch) || x.Brand.Contains(upperSearch) || x.Model.Contains(upperSearch) || x.SerialNumber.Contains(upperSearch) ||
                           x.Sender!.Contains(upperSearch) || EF.Functions.Like(x.CustomerEmail ?? string.Empty, likeSearch) || EF.Functions.Like(x.CustomerPhone ?? string.Empty, likeSearch));
             search = rawSearch;
         }
@@ -411,11 +446,11 @@ public class ServiceController : Controller
     [HttpGet]
     public async Task<IActionResult> Delivery(int id)
     {
-        var record = await _context.ServiceRecords.Include(x => x.Parts).AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        var record = await _context.ServiceRecords.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (record == null) return NotFound();
-        if (record.Status != "Teslime Hazır")
+        if (!CanDeliver(record))
         {
-            TempData["WarningMessage"] = "Bu ürün henüz teslime hazır değil. Önce teknik kontrol durumunu ‘Teslime Hazır’ olarak kaydedin.";
+            TempData["WarningMessage"] = "Bu kayıt teslim işlemine uygun değil veya daha önce teslim edilmiş. Teknik kontrol durumunu kontrol edin.";
             return RedirectToAction(nameof(Control), new { id });
         }
         return View(record);
@@ -437,9 +472,9 @@ public class ServiceController : Controller
             TempData["ErrorMessage"] = "Teslim tarihi kayıt tarihinden önce olamaz.";
             return RedirectToAction(nameof(Delivery), new { id });
         }
-        if (record.Status != "Teslime Hazır" || string.IsNullOrWhiteSpace(record.ServiceResult))
+        if (!CanDeliver(record) || string.IsNullOrWhiteSpace(record.ServiceResult))
         {
-            TempData["ErrorMessage"] = "Teslimden önce kontrol ekranından cihaz durumunu ‘Teslime Hazır’ yapmalı ve yapılan işlemi kaydetmelisiniz.";
+            TempData["ErrorMessage"] = "Teslim için uygun sonuç durumunu ve yapılan işlem açıklamasını teknik kontrol ekranından kaydetmelisiniz.";
             return RedirectToAction(nameof(Control), new { id });
         }
 
@@ -447,8 +482,13 @@ public class ServiceController : Controller
         var (userId, username) = CurrentUser();
         record.DeliveryMethod = deliveryMethod;
         record.DeliveryDate = deliveryDate.Date;
-        record.Status = "Tamamlandı";
-        record.IsRepaired = true;
+        record.Status = record.Status switch
+        {
+            "Teslime Hazır" => "Tamamlandı",
+            "İade Bekliyor" => "İade Edildi",
+            _ => record.Status
+        };
+        record.IsRepaired = record.Status == "Tamamlandı";
         record.UpdatedAt = DateTime.Now;
         record.UpdatedByUserId = userId;
         record.UpdatedByUsername = username;
@@ -555,9 +595,10 @@ public class ServiceController : Controller
     }
 
     [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> ServiceReport(int id, bool autoPrint = false, bool fromCreate = false)
     {
-        var record = await _context.ServiceRecords.Include(x => x.Parts).AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        var record = await _context.ServiceRecords.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (record == null) return NotFound();
         ViewBag.AutoPrint = autoPrint;
         ViewBag.FromCreate = fromCreate;
@@ -565,11 +606,12 @@ public class ServiceController : Controller
     }
 
     [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> DeliveryReport(int id)
     {
-        var record = await _context.ServiceRecords.Include(x => x.Parts).AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        var record = await _context.ServiceRecords.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
         if (record == null) return NotFound();
-        if (record.Status != "Tamamlandı" || !record.DeliveryDate.HasValue)
+        if (!record.DeliveryDate.HasValue)
         {
             TempData["WarningMessage"] = "Teslim raporu yalnızca teslim tamamlandıktan sonra oluşturulabilir.";
             return RedirectToAction(nameof(Details), new { id });
@@ -591,11 +633,11 @@ public class ServiceController : Controller
     private void SanitizeAndValidate(ServiceRecord record)
     {
         record.Parts ??= new List<ServicePart>();
-        ModelState.Remove(nameof(ServiceRecord.Sender));
         ModelState.Remove(nameof(ServiceRecord.Notes));
         ModelState.Remove(nameof(ServiceRecord.Accessories));
         ModelState.Remove(nameof(ServiceRecord.ControlNotes));
         ModelState.Remove(nameof(ServiceRecord.ServiceResult));
+        ModelState.Remove(nameof(ServiceRecord.ServiceReceiptNumber));
         foreach (var key in ModelState.Keys.Where(k => k.StartsWith("Parts[", StringComparison.OrdinalIgnoreCase)).ToList()) ModelState.Remove(key);
         record.Sender = UpperTr(record.Sender);
         record.Brand = UpperTr(record.Brand);
@@ -605,6 +647,21 @@ public class ServiceController : Controller
         record.FaultReason = UpperTr(record.FaultReason);
         record.CustomerEmail = record.CustomerEmail?.Trim().ToLowerInvariant() ?? string.Empty;
         record.CustomerPhone = record.CustomerPhone?.Trim() ?? string.Empty;
+        record.ServiceReceiptNumber = UpperTr(record.ServiceReceiptNumber);
+
+        void RequireText(string key, string? value, string message)
+        {
+            if (!string.IsNullOrWhiteSpace(value)) return;
+            if (!ModelState.TryGetValue(key, out var state) || state.Errors.Count == 0)
+                ModelState.AddModelError(key, message);
+        }
+
+        RequireText(nameof(ServiceRecord.Sender), record.Sender, "Gönderen / Müşteri alanı zorunludur.");
+        RequireText(nameof(ServiceRecord.Brand), record.Brand, "Marka zorunludur.");
+        RequireText(nameof(ServiceRecord.Model), record.Model, "Model zorunludur.");
+        RequireText(nameof(ServiceRecord.ProductType), record.ProductType, "Cins zorunludur.");
+        RequireText(nameof(ServiceRecord.SerialNumber), record.SerialNumber, "Seri numarası zorunludur.");
+        RequireText(nameof(ServiceRecord.FaultReason), record.FaultReason, "Arıza nedeni zorunludur.");
 
         if (!string.IsNullOrWhiteSpace(record.CustomerEmail) &&
             !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(record.CustomerEmail))
@@ -624,8 +681,7 @@ public class ServiceController : Controller
         record.Notes = UpperTr(record.Notes);
         record.ControlNotes = UpperTr(record.ControlNotes);
         record.ServiceResult = UpperTr(record.ServiceResult);
-        if (string.IsNullOrWhiteSpace(record.SentToService))
-            ModelState.AddModelError(nameof(record.SentToService), "Gönderilen servis zorunludur.");
+        RequireText(nameof(ServiceRecord.SentToService), record.SentToService, "Gönderilen servis zorunludur.");
 
         record.Parts = record.Parts.Where(p => !string.IsNullOrWhiteSpace(p.PartName) || !string.IsNullOrWhiteSpace(p.SerialNumber)).ToList();
         foreach (var part in record.Parts)
@@ -657,6 +713,7 @@ public class ServiceController : Controller
         record.ControlNotes = UpperTr(record.ControlNotes);
         record.ServiceResult = UpperTr(record.ServiceResult);
         record.SentToService = UpperTr(record.SentToService);
+        record.ServiceReceiptNumber = UpperTr(record.ServiceReceiptNumber);
         record.Parts ??= new List<ServicePart>();
         foreach (var part in record.Parts)
         {
@@ -678,7 +735,7 @@ public class ServiceController : Controller
 
     private static object Snapshot(ServiceRecord r) => new
     {
-        r.TrackingNumber, r.Sender, r.CustomerEmail, r.CustomerPhone, r.Brand, r.Model, r.ProductType, r.SerialNumber, r.ServiceArrivalDate, r.ServiceSentDate, r.SentToService,
+        r.TrackingNumber, r.ServiceReceiptNumber, r.Sender, r.CustomerEmail, r.CustomerPhone, r.Brand, r.Model, r.ProductType, r.SerialNumber, r.ServiceArrivalDate, r.ServiceSentDate, r.SentToService,
         r.FaultReason, r.Accessories, r.Notes, r.ControlNotes, r.Status, r.ServiceResult, r.IsUnderWarranty, r.HasCharge, r.ChargeAmount,
         r.ChargeCurrency, r.ChargeVatMode, r.DeliveryMethod, r.DeliveryDate, Parts = r.Parts.Select(p => new { p.PartType, p.PartName, p.SerialNumber, p.Quantity, p.UnitPrice, p.Currency }).ToArray()
     };

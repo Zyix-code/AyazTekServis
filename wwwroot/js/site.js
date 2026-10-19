@@ -79,6 +79,109 @@
     document.addEventListener('input', event => uppercaseValue(event.target));
     document.addEventListener('change', event => uppercaseValue(event.target));
 
+    const validationSelector = 'input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea';
+
+    const isValidationTarget = element => {
+        if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement)) return false;
+        if (element.disabled) return false;
+        return element.required || element.hasAttribute('data-val-required') || element.willValidate;
+    };
+
+    const requiredMessage = element => {
+        if (element instanceof HTMLSelectElement) return 'Bu alanın seçilmesi zorunludur.';
+        if (element.type === 'radio' || element.type === 'checkbox') return 'Bu alanın seçilmesi zorunludur.';
+        return 'Bu alanın doldurulması zorunludur.';
+    };
+
+    const validityMessage = element => {
+        if (element.validity.valueMissing) return requiredMessage(element);
+        if (element.validity.typeMismatch) return element.type === 'email' ? 'Geçerli bir e-posta adresi girin.' : 'Geçerli bir değer girin.';
+        if (element.validity.patternMismatch) return element.dataset.validationMessage || 'Girilen değer beklenen formatta değil.';
+        if (element.validity.tooShort) return `En az ${element.minLength} karakter girin.`;
+        if (element.validity.tooLong) return `En fazla ${element.maxLength} karakter girebilirsiniz.`;
+        if (element.validity.rangeUnderflow) return `Değer en az ${element.min} olmalıdır.`;
+        if (element.validity.rangeOverflow) return `Değer en fazla ${element.max} olmalıdır.`;
+        if (element.validity.stepMismatch) return 'Geçerli bir değer girin.';
+        return element.validationMessage || 'Bu alanı kontrol edin.';
+    };
+
+    const findValidationMessage = element => {
+        const name = element.name;
+        if (name && element.form) {
+            const existing = [...element.form.querySelectorAll('[data-valmsg-for]')]
+                .find(item => item.getAttribute('data-valmsg-for') === name);
+            if (existing) return existing;
+        }
+        let feedback = element.parentElement?.querySelector(':scope > .invalid-feedback[data-generated-validation="true"]');
+        if (!feedback && element.parentElement) {
+            feedback = document.createElement('div');
+            feedback.className = 'invalid-feedback';
+            feedback.dataset.generatedValidation = 'true';
+            element.insertAdjacentElement('afterend', feedback);
+        }
+        return feedback;
+    };
+
+    const setFieldState = (element, forceMessage = false) => {
+        if (!isValidationTarget(element)) return true;
+        const valid = element.checkValidity();
+        const feedback = findValidationMessage(element);
+        element.classList.toggle('is-invalid', !valid);
+        element.classList.remove('is-valid');
+        if (feedback) {
+            feedback.classList.toggle('invalid-feedback', true);
+            feedback.classList.toggle('d-block', !valid);
+            if (!valid && (forceMessage || !feedback.textContent?.trim())) feedback.textContent = validityMessage(element);
+            if (valid && feedback.dataset.generatedValidation === 'true') feedback.textContent = '';
+        }
+        return valid;
+    };
+
+    document.querySelectorAll('form').forEach(form => {
+        const fields = [...form.querySelectorAll(validationSelector)].filter(isValidationTarget);
+        if (!fields.length) return;
+        form.noValidate = true;
+
+        fields.forEach(field => field.classList.remove('is-valid'));
+
+        fields.forEach(field => {
+            if (!field.name) return;
+            const message = [...form.querySelectorAll('[data-valmsg-for]')]
+                .find(item => item.getAttribute('data-valmsg-for') === field.name);
+            if (message && message.textContent?.trim()) {
+                field.classList.add('is-invalid');
+                message.classList.add('invalid-feedback', 'd-block');
+            }
+        });
+
+        form.addEventListener('submit', event => {
+            const currentFields = [...form.querySelectorAll(validationSelector)].filter(isValidationTarget);
+            let firstInvalid = null;
+            currentFields.forEach(field => {
+                if (!setFieldState(field, true) && !firstInvalid) firstInvalid = field;
+            });
+            if (firstInvalid) {
+                event.preventDefault();
+                event.stopPropagation();
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                window.setTimeout(() => firstInvalid.focus({ preventScroll: true }), 250);
+            }
+        });
+    });
+
+    document.addEventListener('input', event => {
+        const field = event.target;
+        if (field?.classList?.contains('is-invalid') && isValidationTarget(field)) {
+            setFieldState(field, true);
+        }
+    });
+    document.addEventListener('change', event => {
+        const field = event.target;
+        if (field?.classList?.contains('is-invalid') && isValidationTarget(field)) {
+            setFieldState(field, true);
+        }
+    });
+
     document.querySelectorAll('.app-alert.alert-success, .app-alert.alert-warning').forEach(alert => {
         const delay = alert.classList.contains('alert-warning') ? 8000 : 5000;
         window.setTimeout(() => {

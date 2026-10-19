@@ -11,7 +11,7 @@
     <div>
         <div class="eyebrow">Güvenlik</div>
         <h1>Aktif Oturumlar</h1>
-        <p>Her kullanıcı yalnızca bir kez gösterilir. Bir kullanıcıyı sonlandırdığınızda o kullanıcıya ait tüm aktif oturumlar kapatılır.</p>
+        <p>Açık kullanıcı oturumlarını görüntüleyin ve gerektiğinde sonlandırın.</p>
     </div>
 </div>
 
@@ -24,9 +24,9 @@
         <div class="compact-select-wrap">
             <label class="form-label">Göster</label>
             <select class="form-select" name="pageSize">
-                <option value="20" selected="@(pageSize==20)">20</option>
-                <option value="50" selected="@(pageSize==50)">50</option>
-                <option value="100" selected="@(pageSize==100)">100</option>
+                <option value="20" selected="@(pageSize==20 ? "selected" : null)">20</option>
+                <option value="50" selected="@(pageSize==50 ? "selected" : null)">50</option>
+                <option value="100" selected="@(pageSize==100 ? "selected" : null)">100</option>
             </select>
         </div>
         <div class="compact-filter-actions">

@@ -22,7 +22,7 @@
         userThemePreference = await Db.Users.AsNoTracking()
             .Where(x => x.Id == layoutUserId)
             .Select(x => x.ThemePreference)
-            .FirstOrDefaultAsync() ?? "system";
+            .SingleOrDefaultAsync() ?? "system";
         if (userThemePreference is not ("system" or "light" or "dark")) userThemePreference = "system";
     }
     var routeController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
@@ -30,7 +30,7 @@
     var serviceListActive = routeController == "Service" && new[] { "Index", "Details", "Edit", "Control", "ServiceReport" }.Contains(routeAction);
     var deliveryActive = routeController == "Service" && new[] { "DeliveryQueue", "Delivery", "DeliveryReport" }.Contains(routeAction);
     AyazTekServis.ViewModels.NotificationCenterViewModel? notificationSummary = null;
-    if (authenticated) notificationSummary = await NotificationService.GetAsync(User.IsInRole("Admin"), 6);
+    if (authenticated) notificationSummary = await NotificationService.GetAsync(User.IsInRole("Admin"), 500);
 }
 <!DOCTYPE html>
 <html lang="tr" data-default-theme="@defaultTheme" data-user-theme="@userThemePreference">
@@ -127,9 +127,9 @@
             }
             @RenderBody()
         </main>
-        <footer class="app-footer">
-            <div>Bu uygulama Selçuk Şahin tarafından yapılmış olup.</div>
-            <div>Arıza, öneri, şikayet için <a href="mailto:@supportEmail">@supportEmail</a>'a mail gönderebilirsiniz.</div>
+        <footer class="app-footer app-footer-pro">
+            <div><strong>AyazTekServis</strong> · Selçuk Şahin tarafından geliştirilmiştir <span class="footer-sep">·</span> <span class="footer-powered">Powered by Zyix-code</span></div>
+            <div>Arıza, öneri ve geri bildirim: <a href="mailto:@supportEmail">@supportEmail</a></div>
         </footer>
     </div>
 }
@@ -137,9 +137,9 @@ else
 {
     <div class="auth-page">
         <main class="auth-main">@RenderBody()</main>
-        <footer class="auth-footer">
-            <div>Bu uygulama Selçuk Şahin tarafından yapılmış olup.</div>
-            <div>Arıza, öneri, şikayet için <a href="mailto:@supportEmail">@supportEmail</a>'a mail gönderebilirsiniz.</div>
+        <footer class="auth-footer auth-footer-pro">
+            <div><strong>AyazTekServis</strong> · Selçuk Şahin tarafından geliştirilmiştir <span class="footer-sep">·</span> <span class="footer-powered">Powered by Zyix-code</span></div>
+            <div>Arıza, öneri ve geri bildirim: <a href="mailto:@supportEmail">@supportEmail</a></div>
         </footer>
     </div>
 }

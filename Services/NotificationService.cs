@@ -10,11 +10,10 @@ public class NotificationService(ApplicationDbContext db, BusinessDayService bus
     private readonly ApplicationDbContext _db = db;
     private readonly BusinessDayService _businessDays = businessDays;
     private readonly IMemoryCache _cache = cache;
-    private static readonly string[] ClosedStatuses = ["Tamamlandı", "İade Edildi", "Onarılamadı"];
 
-    public async Task<NotificationCenterViewModel> GetAsync(bool isAdmin, int maxItems = 100)
+    public async Task<NotificationCenterViewModel> GetAsync(bool isAdmin, int maxItems = 500)
     {
-        var key = $"notifications:{(isAdmin ? "admin" : "user")}";
+        var key = $"notifications:v2:{(isAdmin ? "admin" : "user")}";
         var cached = await _cache.GetOrCreateAsync(key, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30);
@@ -23,7 +22,7 @@ public class NotificationService(ApplicationDbContext db, BusinessDayService bus
 
         return new NotificationCenterViewModel
         {
-            Items = cached.Take(Math.Clamp(maxItems, 1, 100)).Select(Clone).ToList()
+            Items = cached.Take(Math.Clamp(maxItems, 1, 500)).Select(Clone).ToList()
         };
     }
 
@@ -31,8 +30,13 @@ public class NotificationService(ApplicationDbContext db, BusinessDayService bus
     {
         var items = new List<NotificationItem>();
         var records = await _db.ServiceRecords.AsNoTracking()
-            .Where(x => !x.IsDeleted && !ClosedStatuses.Contains(x.Status))
-            .Select(x => new { x.Id, x.TrackingNumber, x.Brand, x.Model, x.Status, x.ServiceArrivalDate, x.ServiceSentDate, x.UpdatedAt, x.CreatedAt })
+            .Where(x => !x.IsDeleted && x.DeliveryDate == null && x.Status != "Tamamlandı")
+            .Select(x => new
+            {
+                x.Id, x.TrackingNumber, x.Brand, x.Model, x.SerialNumber,
+                x.Sender, x.SentToService, x.Status, x.ServiceArrivalDate,
+                x.ServiceSentDate, x.UpdatedAt, x.CreatedAt
+            })
             .ToListAsync();
 
         foreach (var r in records)
@@ -41,24 +45,40 @@ public class NotificationService(ApplicationDbContext db, BusinessDayService bus
             var start = preService ? r.CreatedAt : (r.ServiceSentDate ?? r.ServiceArrivalDate);
             var days = _businessDays.Count(start);
             var approvalWaiting = string.Equals(r.Status, "Müşteri Onayı Bekliyor", StringComparison.OrdinalIgnoreCase);
-            if (!preService && !approvalWaiting && days < 18) continue;
+            var isOverdue = preService ? days > 7 : days >= 20;
+            var isNear = !preService && days >= 18 && days < 20;
 
-            var level = approvalWaiting && days < 20 ? "warning" : _businessDays.Level(start, null, r.Status);
-            var bucket = preService ? "preservice" : (days >= 20 ? "danger" : "warning");
+            if (!preService && !approvalWaiting && !isOverdue && !isNear) continue;
+
+            var bucket = preService ? "preservice" : isOverdue ? "danger" : isNear ? "warning" : "action";
+            var level = isOverdue ? "danger" : isNear || approvalWaiting ? "warning" : "info";
             var title = preService
-                ? (days >= 8 ? "Servise gönderilmedi · süre aşıldı" : "Servise gönderilmeyi bekliyor · 0-7 iş günü")
-                : approvalWaiting
-                    ? "Müşteri onayı bekleniyor"
-                    : days >= 20 ? "20+ iş günü · yasal süre kritik" : "18-19 iş günü · yasal sınıra yaklaşıyor";
+                ? (isOverdue ? "Servise gönderim hedefi aşıldı" : "Servise gönderilmeyi bekliyor")
+                : isOverdue ? "Servis takip süresi aşıldı"
+                : isNear ? "Servis takip süresi yaklaşıyor"
+                : "Müşteri onayı bekleniyor";
 
             items.Add(new NotificationItem
             {
-                Type = level, Bucket = bucket,
-                Icon = level == "danger" ? "bi-exclamation-octagon-fill" : level == "warning" ? "bi-exclamation-triangle-fill" : "bi-clock-history",
-                Title = $"{r.TrackingNumber} · {title}",
-                Message = $"{r.Brand} {r.Model} · {_businessDays.Describe(start, null, r.Status)} · Durum: {r.Status}",
+                Type = level,
+                Bucket = bucket,
+                Icon = isOverdue ? "bi-exclamation-octagon-fill" :
+                    isNear || approvalWaiting ? "bi-exclamation-triangle-fill" : "bi-clock-history",
+                Title = title,
+                Message = _businessDays.Describe(start, null, r.Status),
                 Url = $"/Service/Details/{r.Id}",
-                SortDate = r.UpdatedAt ?? r.CreatedAt
+                SortDate = r.UpdatedAt ?? r.CreatedAt,
+                IsServiceRecord = true,
+                Device = $"{r.Brand} {r.Model}".Trim(),
+                SerialNumber = r.SerialNumber,
+                Sender = r.Sender,
+                SentToService = r.SentToService,
+                Status = r.Status,
+                TrackingNumber = r.TrackingNumber,
+                RegisteredAt = r.CreatedAt,
+                SentAt = r.ServiceSentDate,
+                LastUpdatedAt = r.UpdatedAt,
+                WorkingDays = days
             });
         }
 
@@ -68,35 +88,37 @@ public class NotificationService(ApplicationDbContext db, BusinessDayService bus
                 .OrderByDescending(x => x.CreatedAt).Select(x => (DateTime?)x.CreatedAt).FirstOrDefaultAsync();
             var age = lastBackup == null ? int.MaxValue : (DateTime.Now - lastBackup.Value).Days;
             if (age >= 7)
-            {
                 items.Add(new NotificationItem
                 {
                     Type = "warning", Bucket = "system", Icon = "bi-database-exclamation", Title = "Veritabanı yedeği gecikti",
                     Message = lastBackup == null ? "Henüz başarılı bir veritabanı yedeği alınmamış." : $"Son başarılı yedek {age} gün önce alındı.",
                     Url = "/Admin/Backups", SortDate = DateTime.Now
                 });
-            }
 
             var errorCount = await _db.ErrorLogs.AsNoTracking().CountAsync(x => x.CreatedAt >= DateTime.Now.AddDays(-1));
             if (errorCount > 0)
-            {
                 items.Add(new NotificationItem
                 {
                     Type = "danger", Bucket = "system", Icon = "bi-bug-fill", Title = "Son 24 saatte uygulama hataları",
                     Message = $"{errorCount} uygulama hatası kaydedildi. Hata loglarını inceleyin.",
                     Url = "/Admin/ErrorLogs", SortDate = DateTime.Now
                 });
-            }
         }
 
         return items.OrderByDescending(x => x.Type == "danger")
             .ThenByDescending(x => x.Type == "warning")
+            .ThenByDescending(x => x.WorkingDays)
             .ThenByDescending(x => x.SortDate)
-            .Take(100).ToList();
+            .Take(500).ToList();
     }
 
     private static NotificationItem Clone(NotificationItem x) => new()
     {
-        Type = x.Type, Bucket = x.Bucket, Icon = x.Icon, Title = x.Title, Message = x.Message, Url = x.Url, SortDate = x.SortDate
+        Type = x.Type, Bucket = x.Bucket, Icon = x.Icon, Title = x.Title,
+        Message = x.Message, Url = x.Url, SortDate = x.SortDate,
+        IsServiceRecord = x.IsServiceRecord, Device = x.Device,
+        SerialNumber = x.SerialNumber, Sender = x.Sender, SentToService = x.SentToService,
+        Status = x.Status, TrackingNumber = x.TrackingNumber, RegisteredAt = x.RegisteredAt,
+        SentAt = x.SentAt, LastUpdatedAt = x.LastUpdatedAt, WorkingDays = x.WorkingDays
     };
 }

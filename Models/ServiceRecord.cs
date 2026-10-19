@@ -6,9 +6,9 @@ public class ServiceRecord
 {
     public int Id { get; set; }
 
-    [MaxLength(200)]
-    [Display(Name = "Gönderen")]
-    public string? Sender { get; set; }
+    [Required(ErrorMessage = "Gönderen / Müşteri alanı zorunludur."), MaxLength(200)]
+    [Display(Name = "Gönderen / Müşteri")]
+    public string Sender { get; set; } = string.Empty;
 
     [MaxLength(254), EmailAddress(ErrorMessage = "Geçerli bir müşteri e-posta adresi girin.")]
     [Display(Name = "Müşteri E-postası")]
@@ -46,8 +46,12 @@ public class ServiceRecord
     public string SentToService { get; set; } = string.Empty;
 
     [MaxLength(30)]
-    [Display(Name = "Servis Takip No")]
+    [Display(Name = "Sistem Takip No")]
     public string TrackingNumber { get; set; } = string.Empty;
+
+    [MaxLength(100)]
+    [Display(Name = "Servis Fiş / Takip No")]
+    public string? ServiceReceiptNumber { get; set; }
 
     [Required(ErrorMessage = "Arıza nedeni zorunludur."), MaxLength(4000)]
     [Display(Name = "Arıza Nedeni")]

@@ -12,7 +12,7 @@ public class NotificationsController(NotificationService notifications) : Contro
     public async Task<IActionResult> Index(string? type, int page = 1)
     {
         page = Math.Max(1, page);
-        var all = await _notifications.GetAsync(User.IsInRole("Admin"), 100);
+        var all = await _notifications.GetAsync(User.IsInRole("Admin"), 500);
         var allItems = all.Items.ToList();
         var filtered = string.IsNullOrWhiteSpace(type)
             ? allItems
